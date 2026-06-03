@@ -1,0 +1,23 @@
+# Dependencias y compilación
+node_modules
+dist
+build
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Git
+.git
+.gitignore
+
+# Entorno y Secretos
+.env
+.env.development
+.env.production
+.env.example
+
+# Docker (Archivos que NO deben ir dentro de la imagen final)
+.dockerignore
+README.md

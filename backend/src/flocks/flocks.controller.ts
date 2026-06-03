@@ -1,0 +1,60 @@
+import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards } from '@nestjs/common';
+
+import { FlocksService } from './flocks.service';
+import { CreateFlockDto } from './dto/create-flock.dto';
+import { UpdateFlockDto } from './dto/update-flock.dto';
+import { RegisterDeadBirdsDto } from './dto/register-dead-birds.dto';
+import { FinishFlockDto } from './dto/finish-flock.dto';
+import { AssignFlockDto } from './dto/assign-flock.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+
+@Controller('flocks')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class FlocksController {
+  constructor(private readonly flocksService: FlocksService) {}
+
+  @Post()
+  @RequirePermission('LOTES_CREAR')
+  create(@Body() dto: CreateFlockDto) {
+    return this.flocksService.create(dto);
+  }
+
+  @Get()
+  @RequirePermission('LOTES_VER')
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.flocksService.findAll(paginationDto);
+  }
+
+  @Get(':id')
+  @RequirePermission('LOTES_VER')
+  findOne(@Param('id') id: string) {
+    return this.flocksService.findOne(id);
+  }
+
+  @Patch(':id')
+  @RequirePermission('LOTES_EDITAR')
+  update(@Param('id') id: string, @Body() dto: UpdateFlockDto) {
+    return this.flocksService.update(id, dto);
+  }
+
+  @Post('asignar')
+  @RequirePermission('LOTES_EDITAR')
+  assignFlock(@Body() dto: AssignFlockDto) {
+    return this.flocksService.assignFlock(dto);
+  }
+
+  @Post('aves-muertas')
+  @RequirePermission('LOTES_EDITAR')
+  registerDeadBirds(@Body() dto: RegisterDeadBirdsDto) {
+    return this.flocksService.registerDeadBirds(dto);
+  }
+
+  @Post('finalizar')
+  @RequirePermission('LOTES_EDITAR')
+  finishFlock(@Body() dto: FinishFlockDto) {
+    return this.flocksService.finishFlock(dto);
+  }
+}
