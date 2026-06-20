@@ -46,15 +46,24 @@ export interface Role {
   id_rol: number;
   nombre: string;
   descripcion?: string;
+  rolPermisos?: RolePermission[];
 }
 
 // ===== PERMISSION MODEL =====
 export interface Permission {
-  id: number;
+  id?: number;
+  id_permiso: number;
   nombre: string;
   descripcion?: string;
   recurso?: string;
   accion?: string;
+}
+
+export interface RolePermission {
+  id_rol_permiso: number;
+  id_rol: number;
+  id_permiso: number;
+  permiso?: Permission;
 }
 
 // ===== BREED MODEL =====

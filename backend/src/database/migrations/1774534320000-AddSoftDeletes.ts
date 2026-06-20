@@ -14,5 +14,4 @@ export class AddSoftDeletes1774534320000 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "lote" DROP COLUMN "fecha_eliminacion"`);
         await queryRunner.query(`ALTER TABLE "usuario" DROP COLUMN "fecha_eliminacion"`);
     }
-
 }

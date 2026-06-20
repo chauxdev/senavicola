@@ -4,7 +4,7 @@ import { Observable, map } from 'rxjs';
 import { BaseApiService, extractData, extractArray } from './base-api.service';
 import { environment } from '../../../environments/environment';
 import {
-  User, Role, Permission, Breed, Barn, Flock,
+  User, Role, Permission, RolePermission, Breed, Barn, Flock,
   EggType, EggInventory, Supply, SupplyCategory,
   MeasurementUnit, SupplyHistory, SupplyAction,
   Feeding, Report
@@ -14,6 +14,12 @@ import {
 @Injectable({ providedIn: 'root' })
 export class UsersService extends BaseApiService<User> {
   protected endpoint = 'users';
+
+  setStatus(id: string, activo: boolean): Observable<User> {
+    return this.http.patch<unknown>(`${this.baseUrl}/users/${id}/status`, { activo }).pipe(
+      map((response) => extractData<User>(response)),
+    );
+  }
 }
 
 // ===== ROLES =====
@@ -34,6 +40,12 @@ export class RolesService extends BaseApiService<Role> {
       map(response => extractArray<Role>(response))
     );
   }
+
+  updateRolePermissions(id_rol: number, permissionIds: number[]): Observable<Role> {
+    return this.http.patch<unknown>(`${this.baseUrl}/roles/${id_rol}/permissions`, { permissionIds }).pipe(
+      map(response => extractData<Role>(response)),
+    );
+  }
 }
 
 // ===== PERMISSIONS =====
@@ -41,17 +53,86 @@ export class RolesService extends BaseApiService<Role> {
 export class PermissionsService extends BaseApiService<Permission> {
   protected endpoint = 'permissions';
 
+  /**
+   * Asigna un permiso individual a un rol
+   * @param data - Objeto con id_rol e id_permiso
+   * @returns Observable con la respuesta del servidor
+   */
   assignPermission(data: { id_rol: number; id_permiso: number }): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/permissions/assign`, data);
   }
 
+  /**
+   * Remueve un permiso individual de un rol
+   * @param data - Objeto con id_rol e id_permiso a remover
+   * @returns Observable con la respuesta del servidor
+   */
   removePermission(data: { id_rol: number; id_permiso: number }): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/permissions/assign/remove`, { body: data });
   }
 
+  /**
+   * Obtiene todos los permisos asignados a un rol específico
+   * @param id_rol - ID del rol para consultar permisos
+   * @returns Observable con array de permisos del rol
+   */
   getPermissionsByRole(id_rol: number): Observable<Permission[]> {
     return this.http.get<unknown>(`${this.baseUrl}/permissions/rol/${id_rol}`).pipe(
-      map(response => extractArray<Permission>(response))
+      map(response => extractArray<RolePermission>(response)),
+      map((assignments) => assignments.map((assignment) => assignment.permiso!)),
+    );
+  }
+
+  /**
+   * Obtiene la matriz completa de roles y permisos del sistema
+   * @returns Observable con roles, permisos y sus asociaciones
+   */
+  getMatrix(): Observable<{ roles: Role[]; permissions: Permission[] }> {
+    return this.http.get<unknown>(`${this.baseUrl}/permissions/matrix`).pipe(
+      map(response => extractData<{ roles: Role[]; permissions: Permission[] }>(response)),
+    );
+  }
+
+  /**
+   * Actualiza todos los permisos asignados a un rol de forma atómica
+   * 
+   * DESCRIPCIÓN:
+   * Este método sincroniza los permisos de un rol con una lista específica de IDs de permisos.
+   * Realiza una actualización de la matriz de permisos del rol, reemplazando completamente
+   * los permisos existentes con los nuevos especificados.
+   * 
+   * FLUJO:
+   * 1. Envía un PATCH request al endpoint de roles con los nuevos IDs de permisos
+   * 2. El backend realiza la sincronización (agrega permisos nuevos, remueve los no incluidos)
+   * 3. Retorna el rol actualizado con su nueva lista de permisos
+   * 
+   * @param roleId - ID numérico del rol a actualizar (ejemplo: 1, 2, 3, etc.)
+   * @param permissionIds - Array de IDs de permisos a asignar al rol (ejemplo: [1, 2, 5])
+   *                        Si el array está vacío, se removerán todos los permisos del rol
+   * 
+   * @returns Observable<Role> - Observable que emite el rol actualizado con la nueva
+   *                             configuración de permisos. Al suscribirse, espera la
+   *                             respuesta exitosa del servidor.
+   * 
+   * @example
+   * // Asignar permisos 1, 3 y 5 al rol 2
+   * this.permissionsService.updateRolePermissions(2, [1, 3, 5]).subscribe({
+   *   next: (updatedRole) => {
+   *     console.log('Permisos actualizados:', updatedRole);
+   *     this.toast.success('Permisos guardados exitosamente');
+   *   },
+   *   error: (error) => {
+   *     console.error('Error al actualizar permisos:', error);
+   *     this.toast.error('No se pudieron guardar los permisos');
+   *   }
+   * });
+   */
+  updateRolePermissions(roleId: number, permissionIds: number[]): Observable<Role> {
+    return this.http.patch<unknown>(
+      `${this.baseUrl}/roles/${roleId}/permissions`,
+      { permissionIds }
+    ).pipe(
+      map(response => extractData<Role>(response)),
     );
   }
 }

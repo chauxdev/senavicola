@@ -8,11 +8,11 @@ import { FinishFlockDto } from './dto/finish-flock.dto';
 import { AssignFlockDto } from './dto/assign-flock.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('flocks')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class FlocksController {
   constructor(private readonly flocksService: FlocksService) {}
 

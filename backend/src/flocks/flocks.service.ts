@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { paginateAndRespond } from '../common/utils/pagination.util';
 
 import { Flock } from './entities/flock.entity';
@@ -46,6 +46,13 @@ export class FlocksService {
   ) {}
 
   async create(dto: CreateFlockDto) {
+    const existing = await this.flockRepo.findOne({
+      where: { nombre: ILike(dto.nombre) },
+    });
+    if (existing) {
+      throw new ConflictException(`Ya existe un lote con el nombre "${dto.nombre}"`);
+    }
+
     const raza = await this.breedRepo.findOneBy({ id_raza: dto.razaId });
     if (!raza) throw new NotFoundException('Raza no encontrada');
 
@@ -127,6 +134,15 @@ export class FlocksService {
 
     if (!flock) {
       throw new NotFoundException(`Lote ${id} no encontrado`);
+    }
+
+    if (dto.nombre && dto.nombre.toLowerCase() !== flock.nombre.toLowerCase()) {
+      const existing = await this.flockRepo.findOne({
+        where: { nombre: ILike(dto.nombre) },
+      });
+      if (existing && existing.id_lote !== id) {
+        throw new ConflictException(`Ya existe un lote con el nombre "${dto.nombre}"`);
+      }
     }
 
     this.flockRepo.merge(flock, dto);

@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
+import { PermissionsService } from '../../../core/services/permissions.service';
 
 interface NavItem {
   label: string;
@@ -50,7 +51,7 @@ interface NavItem {
       <aside class="sidebar" [class.hidden]="sidebarHidden()">
         <nav>
           <ul>
-            @for (item of navItems; track item.route) {
+            @for (item of navItems(); track item.route) {
               <li>
                 <a [routerLink]="item.route" routerLinkActive="active" class="nav-link">
                   <i class="fas {{ item.icon }}"></i>
@@ -159,13 +160,14 @@ interface NavItem {
 })
 export class LayoutComponent {
   private authService = inject(AuthService);
+  private permissionsService = inject(PermissionsService);
   currentUser = this.authService.currentUser;
   sidebarHidden = signal(false);
   showUserMenu = signal(false);
   showProfileModal = signal(false);
   showLogoutModal = signal(false);
 
-  navItems: NavItem[] = [
+  allNavItems: NavItem[] = [
     { label: 'Inicio', icon: 'fa-home', route: '/dashboard' },
     { label: 'Gestión de Gallinas', icon: 'fa-dove', route: '/flocks' },
     { label: 'Gestión de Huevos', icon: 'fa-egg', route: '/eggs' },
@@ -173,6 +175,20 @@ export class LayoutComponent {
     { label: 'Reportes', icon: 'fa-chart-bar', route: '/reports' },
     { label: 'Configuración', icon: 'fa-cog', route: '/config' },
   ];
+
+  navItems = computed(() => {
+    // Re-evaluate whenever currentUser changes
+    this.currentUser();
+    return this.allNavItems.filter(item => {
+      if (item.route === '/dashboard') return true;
+      if (item.route === '/flocks') return this.permissionsService.hasPermission('LOTES_VER') || this.permissionsService.hasPermission('GALPONES_VER') || this.permissionsService.hasPermission('RAZAS_VER');
+      if (item.route === '/eggs') return this.permissionsService.hasPermission('HUEVOS_VER');
+      if (item.route === '/supplies') return this.permissionsService.hasPermission('INSUMOS_VER') || this.permissionsService.hasPermission('CATEGORIAS_VER');
+      if (item.route === '/reports') return this.permissionsService.hasPermission('REPORTES_VER');
+      if (item.route === '/config') return this.permissionsService.hasPermission('CONFIGURACION_VER') || this.permissionsService.hasPermission('USUARIOS_VER') || this.permissionsService.hasPermission('ROLES_VER');
+      return false;
+    });
+  });
 
   toggleSidebar(): void { this.sidebarHidden.update((v) => !v); }
   toggleUserMenu(): void { this.showUserMenu.update((v) => !v); }

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { UsersService, RolesService } from '../../../core/services/api.services';
@@ -13,7 +14,7 @@ import { User, Role } from '../../../core/models';
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent, HasPermissionDirective],
   template: `
     <div class="users-page">
       <div class="module-header">
@@ -26,7 +27,7 @@ import { User, Role } from '../../../core/models';
         </div>
         <div class="module-header-right">
           <a routerLink="/config" class="btn-outline"><i class="fas fa-arrow-left"></i> Volver</a>
-          <button class="btn-green" (click)="openModal()">
+          <button class="btn-green" *appHasPermission="'USUARIOS_CREAR'" (click)="openModal()">
             <i class="fas fa-plus"></i> Nuevo Usuario
           </button>
         </div>
@@ -76,9 +77,9 @@ import { User, Role } from '../../../core/models';
                     </td>
                     <td class="actions-cell">
                         <button class="btn-icon view" title="Ver Detalle" (click)="viewUser(user)"><i class="fas fa-eye"></i></button>
-                        <button class="btn-icon edit" title="Editar" (click)="editUser(user)"><i class="fas fa-edit"></i></button>
-                        <button class="btn-icon assign" title="Asignar Rol" (click)="openRoleModal(user)"><i class="fas fa-user-tag"></i></button>
-                        <button class="btn-icon delete" title="Eliminar" (click)="deleteUser(user.id_usuario)"><i class="fas fa-trash"></i></button>
+                          <button class="btn-icon edit" *appHasPermission="'USUARIOS_EDITAR'" title="Editar" (click)="editUser(user)"><i class="fas fa-edit"></i></button>
+                          <button class="btn-icon assign" *appHasPermission="'ROLES_EDITAR'" title="Asignar Rol" (click)="openRoleModal(user)"><i class="fas fa-user-tag"></i></button>
+                          <button class="btn-icon delete" *appHasPermission="'USUARIOS_ELIMINAR'" title="Inactivar" (click)="deleteUser(user.id_usuario)"><i class="fas fa-ban"></i></button>
                       </td>
                   </tr>
                 }
@@ -137,6 +138,15 @@ import { User, Role } from '../../../core/models';
                         <option [value]="role.id_rol">{{ role.nombre }}</option>
                       }
                     </select>
+                  </div>
+                </div>
+              }
+              @if (editing()) {
+                <div class="form-group switch-group">
+                  <label><i class="fas fa-toggle-on"></i> Estado</label>
+                  <div class="switch-field">
+                    <input type="checkbox" id="activoSwitch" formControlName="activo" />
+                    <label for="activoSwitch">{{ userForm.controls.activo.value ? 'Activo' : 'Inactivo' }}</label>
                   </div>
                 </div>
               }
@@ -305,6 +315,7 @@ export class UsersComponent implements OnInit {
     email: ['', [Validators.required, Validators.email]],
     password: [''],
     rolId: [''],
+    activo: [true],
   });
 
   ngOnInit(): void {
@@ -351,7 +362,13 @@ export class UsersComponent implements OnInit {
 
   editUser(user: User): void {
     this.editing.set(user);
-    this.userForm.patchValue({ nombre: user.nombre, apellido: (user as any).apellido || '', documento: user.numero_documento || user.documento || '', email: user.email || '' });
+    this.userForm.patchValue({
+      nombre: user.nombre,
+      apellido: (user as any).apellido || '',
+      documento: user.numero_documento || user.documento || '',
+      email: user.email || '',
+      activo: user.estado !== false,
+    });
     this.showModal.set(true);
   }
 

@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { permissionGuard } from '../../core/guards/permission.guard';
 
 export const CONFIG_ROUTES: Routes = [
   {
@@ -7,14 +8,20 @@ export const CONFIG_ROUTES: Routes = [
   },
   {
     path: 'users',
+    canActivate: [permissionGuard],
+    data: { permission: 'USUARIOS_VER' },
     loadComponent: () => import('./users/users.component').then((m) => m.UsersComponent),
   },
   {
     path: 'roles',
+    canActivate: [permissionGuard],
+    data: { permission: 'ROLES_VER' },
     loadComponent: () => import('./roles/roles.component').then((m) => m.RolesComponent),
   },
   {
     path: 'permissions',
+    canActivate: [permissionGuard],
+    data: { permission: 'PERMISOS_VER' },
     loadComponent: () => import('./permissions/permissions.component').then((m) => m.PermissionsComponent),
   },
   {

@@ -23,6 +23,13 @@ export class BarnsService {
       throw new ConflictException(`Ya existe un galpón con el nombre "${dto.nombre}"`);
     }
 
+    const existingCodigo = await this.barnRepository.findOne({
+      where: { codigo: dto.codigo },
+    });
+    if (existingCodigo) {
+      throw new ConflictException(`Ya existe un galpón con el código "${dto.codigo}"`);
+    }
+
     const { id_unidad_medida, ...rest } = dto;
     const barn = this.barnRepository.create({
       ...rest,
@@ -79,6 +86,15 @@ export class BarnsService {
       });
       if (existing) {
         throw new ConflictException(`Ya existe un galpón con el nombre "${dto.nombre}"`);
+      }
+    }
+
+    if (dto.codigo && dto.codigo !== barnResult.codigo) {
+      const existingCodigo = await this.barnRepository.findOne({
+        where: { codigo: dto.codigo },
+      });
+      if (existingCodigo) {
+        throw new ConflictException(`Ya existe un galpón con el código "${dto.codigo}"`);
       }
     }
 

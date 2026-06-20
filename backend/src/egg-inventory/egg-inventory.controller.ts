@@ -5,11 +5,11 @@ import { RegisterEggProductionDto } from './dto/register-egg-production.dto';
 import { RegisterDamagedEggsDto } from './dto/register-damaged-eggs.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('egg-inventory')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EggInventoryController {
   constructor(private readonly service: EggInventoryService) {}
 

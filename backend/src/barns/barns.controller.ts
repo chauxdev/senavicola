@@ -12,11 +12,11 @@ import { BarnsService } from './barns.service';
 import { CreateBarnDto } from './dto/create-barn.dto';
 import { UpdateBarnDto } from './dto/update-barn.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('barns')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class BarnsController {
   constructor(private readonly barnsService: BarnsService) {}
 
