@@ -195,6 +195,12 @@ export class EggInventoryService extends BaseApiService<EggInventory> {
       map(response => extractData<EggInventory>(response))
     );
   }
+
+  getDamagedPaginated(params?: Record<string, any>): Observable<import('../models').PaginatedResponse<any>> {
+    return this.http.get<unknown>(`${this.url}/danados`, { params }).pipe(
+      map(response => extractData<import('../models').PaginatedResponse<any>>(response))
+    );
+  }
 }
 
 // ===== SUPPLY CATEGORIES =====
@@ -303,6 +309,12 @@ export class ReportsService {
     return this.http.post<unknown>(`${this.baseUrl}/reports`, data).pipe(
       map(response => extractData<Report>(response))
     );
+  }
+
+  downloadReport(id: string): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/reports/${id}/download`, {
+      responseType: 'blob'
+    });
   }
 }
 

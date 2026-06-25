@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 
 import { Report } from './entities/report.entity';
 import { CreateReportDto } from './dto/create-report.dto';
@@ -12,6 +12,7 @@ export class ReportsService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepo: Repository<Report>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(dto: CreateReportDto) {
@@ -54,6 +55,41 @@ export class ReportsService {
     return {
       message: 'Reporte encontrado',
       data: report,
+    };
+  }
+
+  async generateCsvBuffer(id: string): Promise<{ filename: string; buffer: Buffer }> {
+    const report = await this.findOne(id);
+    const type = report.data.tipo_reporte;
+    let csvContent = '';
+    const filename = `reporte-${type}-${new Date().toISOString().split('T')[0]}.csv`;
+    const BOM = '\uFEFF';
+
+    if (type === 'gallinas') {
+      const flocks = await this.dataSource.getRepository('Flock').find({ relations: ['galpon'] });
+      csvContent = 'Nombre Lote,Galpón,Cantidad Aves,Estado,Fecha de Inicio\n';
+      flocks.forEach((f: any) => {
+        csvContent += `"${f.nombre}","${f.galpon?.nombre || 'N/A'}",${f.cantidad_aves},"${f.estado}","${f.fecha_inicio || ''}"\n`;
+      });
+    } else if (type === 'huevos') {
+      const eggs = await this.dataSource.getRepository('EggInventory').find({ relations: ['tipo_huevo', 'lote'] });
+      csvContent = 'Tipo Huevo,Cantidad,Lote,Fecha Registro\n';
+      eggs.forEach((e: any) => {
+        csvContent += `"${e.tipo_huevo?.tipo || 'N/A'}",${e.cantidad},"${e.lote?.nombre || 'N/A'}","${e.fecha_registro || ''}"\n`;
+      });
+    } else if (type === 'insumos') {
+      const supplies = await this.dataSource.getRepository('Supply').find({ relations: ['categoria', 'unidadMedida'] });
+      csvContent = 'Insumo,Categoría,Cantidad,Unidad Medida,Fecha Ingreso\n';
+      supplies.forEach((s: any) => {
+        csvContent += `"${s.nombre}","${s.categoria?.nombre_categoria || 'N/A'}",${s.cantidad},"${s.unidadMedida?.abreviatura || 'N/A'}","${s.fecha || ''}"\n`;
+      });
+    } else {
+      csvContent = `Reporte General,Tipo: ${type},Creado: ${new Date().toISOString()}\n`;
+    }
+
+    return {
+      filename,
+      buffer: Buffer.from(BOM + csvContent, 'utf-8'),
     };
   }
 }

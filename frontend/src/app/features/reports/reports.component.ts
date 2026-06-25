@@ -215,25 +215,51 @@ export class ReportsComponent implements OnInit {
   generateReport(): void {
     this.saving.set(true);
 
-    // Build data matching CreateReportDto
     const profile = this.authService.currentUser();
     const data = {
       tipo_reporte: this.selectedType(),
       id_usuario: profile?.id_usuario ?? '',
     };
 
+    // Step 1: Create the report record
     this.reportsService.create(data).subscribe({
-      next: () => {
-        this.toast.success('Reporte guardado exitosamente');
-        this.showModal.set(false);
-        this.loadReports();
+      next: (report: any) => {
+        const reportId = report?.id_reporte;
+        if (!reportId) {
+          this.toast.success('Reporte guardado exitosamente');
+          this.showModal.set(false);
+          this.loadReports();
+          this.saving.set(false);
+          return;
+        }
+        // Step 2: Download the CSV blob
+        this.reportsService.downloadReport(reportId).subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte-${this.selectedType()}-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            this.toast.success('Reporte descargado exitosamente');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          error: () => {
+            this.toast.success('Reporte guardado (descarga no disponible)');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          complete: () => this.saving.set(false),
+        });
       },
       error: (err) => {
         const msg = err?.error?.message;
-        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el reporte en la base de datos');
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el reporte');
         this.saving.set(false);
       },
-      complete: () => this.saving.set(false),
     });
   }
 }

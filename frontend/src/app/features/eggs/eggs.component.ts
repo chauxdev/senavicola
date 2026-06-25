@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -8,23 +8,21 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 import { ToastService } from '../../core/services/toast.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { EggInventory, EggType, Flock, Barn } from '../../core/models';
+import { ModuleHeaderComponent } from '../../shared/components/module-header/module-header.component';
+import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
 
 @Component({
   selector: 'app-eggs',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, PaginationComponent, ModuleHeaderComponent],
   template: `
     <div class="eggs-page">
       <!-- Header del Módulo -->
-      <div class="header_modulo">
-        <div class="header_modulo_izq">
-          <i class="fas fa-egg icono_modulo"></i>
-          <div>
-            <h2 class="titulo_modulo">Gestión de Huevos</h2>
-            <p class="subtitulo_modulo">Administrar y clasificar huevos de manera eficiente.</p>
-          </div>
-        </div>
-      </div>
+      <app-module-header 
+        title="Gestión de Huevos" 
+        description="Administrar y clasificar huevos de manera eficiente." 
+        icon="fa-egg">
+      </app-module-header>
 
       <!-- Cards de Estadísticas -->
       <div class="contenedor_cards_huevos">
@@ -80,12 +78,21 @@ import { EggInventory, EggType, Flock, Barn } from '../../core/models';
           <!-- Formulario de Clasificación -->
           @if (permissions.canWrite()) {
             <form [formGroup]="classifyForm" class="form_clasificar" (ngSubmit)="saveProduction()">
-              <div class="form_row">
+              <div class="form_row" style="grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+                <div class="form_group">
+                  <label>Filtrar por Galpón</label>
+                  <select (change)="selectedManualBarnId.set($any($event.target).value)">
+                    <option value="">Todos los Galpones</option>
+                    @for (barn of barns(); track barn.id_galpon) {
+                      <option [value]="barn.id_galpon">{{ barn.nombre }} ({{ barn.codigo }})</option>
+                    }
+                  </select>
+                </div>
                 <div class="form_group">
                   <label>Seleccionar Lote</label>
                   <select formControlName="loteId">
                     <option value="">Seleccionar</option>
-                    @for (flock of flocks(); track flock.id_lote) {
+                    @for (flock of filteredManualFlocks(); track flock.id_lote) {
                       <option [value]="flock.id_lote">{{ flock.nombre }}</option>
                     }
                   </select>
@@ -100,13 +107,13 @@ import { EggInventory, EggType, Flock, Barn } from '../../core/models';
                   </select>
                 </div>
               </div>
-              <div class="form_row">
+              <div class="form_row" style="grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
                 <div class="form_group">
                   <label>Cantidad de huevos</label>
                   <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" />
                 </div>
-                <div class="form_group_btn">
-                  <button type="submit" class="btn_clasificar" [disabled]="saving()">
+                <div class="form_group_btn" style="display: flex; align-items: flex-end;">
+                  <button type="submit" class="btn_clasificar" [disabled]="saving()" style="width: 100%; height: 45px;">
                     <i class="fas fa-search"></i> Clasificar
                   </button>
                 </div>
@@ -118,9 +125,157 @@ import { EggInventory, EggType, Flock, Barn } from '../../core/models';
         }
 
         @if (classifTab() === 'automatica') {
-          <div class="texto_placeholder">
-            <i class="fas fa-video-slash" style="font-size:4rem;margin-bottom:1rem;display:block;color:var(--gray-dark)"></i>
-            Clasificación automática por cámara (próximamente)
+          <!-- Cards de Estadísticas Duplicadas para Clasificación Automática -->
+          <div class="contenedor_cards_huevos" style="margin-top: 1.5rem; margin-bottom: 2rem;">
+            <div class="card_stat_huevo" style="padding: 1.2rem 1.5rem;">
+              <p class="card_label_huevo" style="font-size: 1.1rem; margin-bottom: 0.2rem;">Total Hoy</p>
+              <h3 class="card_valor_huevo card_azul" style="font-size: 2.2rem;">{{ totalToday() }}</h3>
+            </div>
+            @for (type of eggTypes(); track type.id_tipo) {
+              <div class="card_stat_huevo" style="padding: 1.2rem 1.5rem;">
+                <p class="card_label_huevo" style="font-size: 1.1rem; margin-bottom: 0.2rem;">{{ type.tipo }}</p>
+                <h3 class="card_valor_huevo" [class]="typeColorClass($index)" style="font-size: 2.2rem;">{{ getCountByType(type.id_tipo) }}</h3>
+              </div>
+            }
+          </div>
+
+          <div class="auto-classifier-container" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 3rem; margin-top: 2rem;">
+            <!-- Panel Izquierdo: Simulación de Cámara -->
+            <div class="camera-simulation-panel" style="background: #f8f9fa; border-radius: 12px; padding: 2rem; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 2rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                  <h4 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: #333;">Vista de Cámara</h4>
+                  <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.2rem; font-weight: 600;">
+                    <span [style.background]="cameraStatus() === 'conectado' ? '#4caf50' : '#f44336'" style="width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
+                    <span [style.color]="cameraStatus() === 'conectado' ? '#4caf50' : '#f44336'">{{ cameraStatus() | uppercase }}</span>
+                  </div>
+                </div>
+                <select [value]="selectedCamera()" (change)="selectedCamera.set($any($event.target).value)" style="padding: 0.6rem 1rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1.3rem;">
+                  <option value="camara_1">Cámara 1 (Línea Principal)</option>
+                  <option value="camara_2">Cámara 2 (Línea Secundaria)</option>
+                </select>
+              </div>
+
+              <!-- Camera View Simulator Screen -->
+              <div class="camera-screen" style="position: relative; aspect-ratio: 16/9; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: white;">
+                @if (cameraStatus() === 'conectado') {
+                  <div style="text-align: center; z-index: 10;">
+                    <i class="fas fa-video" style="font-size: 4rem; color: #4caf50; animation: pulse 2s infinite; margin-bottom: 1rem; display: block;"></i>
+                    <p style="font-size: 1.3rem; margin: 0; color: #94a3b8;">TRANSMITIENDO EN VIVO</p>
+                    @if (lastDetectedWeight()) {
+                      <div style="margin-top: 1.5rem; background: rgba(76,175,80,0.25); border: 1px solid #4caf50; padding: 1rem 2rem; border-radius: 6px; font-weight: 700; font-size: 1.6rem; color: #4caf50; backdrop-filter: blur(4px);">
+                        Último Peso: {{ lastDetectedWeight() }}g ({{ lastDetectedType() }})
+                      </div>
+                    }
+                  </div>
+                  <!-- Simulated Scan Line -->
+                  <div style="position: absolute; width: 100%; height: 2px; background: rgba(76,175,80,0.5); top: 0; left: 0; box-shadow: 0 0 10px #4caf50; animation: scan 3s linear infinite;"></div>
+                } @else {
+                  <div style="text-align: center;">
+                    <i class="fas fa-video-slash" style="font-size: 4rem; color: #f44336; margin-bottom: 1rem; display: block;"></i>
+                    <p style="font-size: 1.4rem; color: #94a3b8;">SIN SEÑAL DE CÁMARA</p>
+                  </div>
+                }
+              </div>
+
+              <div style="display: flex; gap: 1.5rem;">
+                <button type="button" class="btn-green" (click)="cameraStatus.set(cameraStatus() === 'conectado' ? 'desconectado' : 'conectado')" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer;">
+                  <i class="fas" [class.fa-plug]="cameraStatus() !== 'conectado'" [class.fa-power-off]="cameraStatus() === 'conectado'"></i>
+                  {{ cameraStatus() === 'conectado' ? 'Desconectar Cámara' : 'Conectar Cámara' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Panel Derecho: Parámetros y Acciones -->
+            <div class="camera-actions-panel" style="display: flex; flex-direction: column; gap: 2rem;">
+              <h4 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: #333; display: flex; align-items: center; gap: 0.8rem;">
+                <i class="fas fa-cogs" style="color: var(--primary-green);"></i> Parámetros de Clasificación
+              </h4>
+
+              <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div class="form_group">
+                  <label>Galpón origen</label>
+                  <select (change)="selectedAutoBarnId.set($any($event.target).value)">
+                    <option value="">Todos los Galpones</option>
+                    @for (barn of barns(); track barn.id_galpon) {
+                      <option [value]="barn.id_galpon">{{ barn.nombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <div class="form_group">
+                  <label>Lote destino</label>
+                  <select [value]="selectedAutoLoteId()" (change)="selectedAutoLoteId.set($any($event.target).value)">
+                    <option value="">Seleccionar Lote</option>
+                    @for (flock of filteredAutoFlocks(); track flock.id_lote) {
+                      <option [value]="flock.id_lote">{{ flock.nombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <div class="form_group">
+                  <label>Cantidad por ciclo</label>
+                  <input type="number" [value]="autoQuantity()" (input)="autoQuantity.set($any($event.target).value)" min="1" max="100" />
+                </div>
+
+                <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado'" (click)="simulateAutoClassification()" style="width: 100%; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2);">
+                  <i class="fas fa-camera"></i> Capturar Peso / Clasificar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tablas de Historial y Dañados para Clasificación Automática -->
+          <div class="auto-classifier-tables" style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin-top: 4rem; border-top: 1px solid #e2e8f0; padding-top: 3rem;">
+            <div>
+              <h4 style="margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: 700; color: #333; display: flex; align-items: center; gap: 0.8rem;">
+                <i class="fas fa-history" style="color: var(--primary-green);"></i> Clasificaciones Recientes (Hoy)
+              </h4>
+              <div class="tabla_contenedor">
+                <table class="tabla">
+                  <thead>
+                    <tr><th>Fecha/Hora</th><th>Lote</th><th>Tipo</th><th>Cant.</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (item of historyItems().slice(0, 5); track item.id_produccion_huevo) {
+                      <tr>
+                        <td>{{ item.produccionFecha | date:'shortTime' }}</td>
+                        <td>{{ item.lote?.nombre || '—' }}</td>
+                        <td><span class="badge_estado disponible">{{ item.tipo_huevo?.tipo || '—' }}</span></td>
+                        <td><strong>{{ item.cantidady }}</strong></td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="4" style="text-align: center; color: #666; padding: 2rem;">No hay clasificaciones registradas hoy.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h4 style="margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: 700; color: #333; display: flex; align-items: center; gap: 0.8rem;">
+                <i class="fas fa-exclamation-circle" style="color: #f44336;"></i> Huevos Dañados Recientes
+              </h4>
+              <div class="tabla_contenedor">
+                <table class="tabla">
+                  <thead>
+                    <tr><th>Lote</th><th>Tipo</th><th>Cant.</th><th>Razón</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (item of damagedItems().slice(0, 5); track $index) {
+                      <tr>
+                        <td>{{ item.inventario?.lote?.nombre || '—' }}</td>
+                        <td><span class="badge_estado disponible">{{ item.inventario?.tipo_huevo?.tipo || '—' }}</span></td>
+                        <td><strong style="color: #f44336;">{{ item.cantidad }}</strong></td>
+                        <td>{{ item.razon || '—' }}</td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="4" style="text-align: center; color: #666; padding: 2rem;">No hay huevos dañados registrados.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         }
       </div>
@@ -189,7 +344,40 @@ import { EggInventory, EggType, Flock, Barn } from '../../core/models';
           }
 
           @if (activeTab() === 'danados') {
-            <div class="texto_placeholder">Huevos dañados (próximamente)</div>
+            @if (loading()) {
+              <div class="loading-container"><div class="spinner"></div></div>
+            } @else if (damagedItems().length === 0) {
+              <div class="empty-state">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>No hay huevos dañados registrados</h3>
+                <p>Usa la opción "Dañados" en la tabla de inventario disponible</p>
+              </div>
+            } @else {
+              <div class="tabla_contenedor">
+                <table class="tabla">
+                  <thead>
+                    <tr><th>Fecha</th><th>Lote</th><th>Tipo Huevo</th><th>Cantidad Dañada</th><th>Razón</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (item of damagedItems(); track $index) {
+                      <tr>
+                        <td>{{ item.registeredAt | date:'short' }}</td>
+                        <td>{{ item.inventario?.lote?.nombre || '—' }}</td>
+                        <td><span class="badge_estado disponible">{{ item.inventario?.tipo_huevo?.tipo || '—' }}</span></td>
+                        <td><strong style="color: #f44336;">{{ item.cantidad }}</strong></td>
+                        <td>{{ item.razon || '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <app-pagination 
+                [currentPage]="dCurrentPage" 
+                [totalPages]="dTotalPages" 
+                [totalItems]="dTotalItems"
+                (pageChange)="onDamagedPageChange($event)">
+              </app-pagination>
+            }
           }
           @if (activeTab() === 'historial') {
             <div class="controles_tabla" style="gap: 1rem;">
@@ -362,6 +550,16 @@ import { EggInventory, EggType, Flock, Barn } from '../../core/models';
     .btn_registrar { flex: 1; padding: 1.2rem 2rem; background: var(--primary-green); color: white; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
     .btn_registrar:hover { background: #2d8600; }
     .btn_registrar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    @keyframes scan {
+      0% { top: 0; }
+      50% { top: 100%; }
+      100% { top: 0; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
   `],
 })
 export class EggsComponent implements OnInit {
@@ -369,14 +567,39 @@ export class EggsComponent implements OnInit {
   private eggService = inject(EggInventoryService);
   private eggTypesService = inject(EggTypesService);
   private flocksService = inject(FlocksService);
+  private barnsService = inject(BarnsService);
   private toast = inject(ToastService);
   public permissions = inject(PermissionsService);
+  private refreshService = inject(DashboardRefreshService);
 
   loading = signal(true);
   inventory = signal<EggInventory[]>([]);
+  statsInventory = signal<EggInventory[]>([]);
   filtered = signal<EggInventory[]>([]);
   eggTypes = signal<EggType[]>([]);
   flocks = signal<Flock[]>([]);
+  barns = signal<Barn[]>([]);
+  selectedManualBarnId = signal<string>('');
+  selectedAutoBarnId = signal<string>('');
+  selectedCamera = signal<string>('camara_1');
+  cameraStatus = signal<'conectado' | 'desconectado'>('conectado');
+  lastDetectedWeight = signal<number | null>(null);
+  lastDetectedType = signal<string>('');
+  selectedAutoLoteId = signal<string>('');
+  autoQuantity = signal<number>(1);
+
+  filteredManualFlocks = computed(() => {
+    const barnId = this.selectedManualBarnId();
+    if (!barnId) return this.flocks();
+    return this.flocks().filter(f => f.ubicacion?.[0]?.galpon?.id_galpon === barnId);
+  });
+
+  filteredAutoFlocks = computed(() => {
+    const barnId = this.selectedAutoBarnId();
+    if (!barnId) return this.flocks();
+    return this.flocks().filter(f => f.ubicacion?.[0]?.galpon?.id_galpon === barnId);
+  });
+
   activeTab = signal<'inventario' | 'danados' | 'historial'>('inventario');
   classifTab = signal<'manual' | 'automatica'>('manual');
   filterType = 'todos';
@@ -395,6 +618,12 @@ export class EggsComponent implements OnInit {
   hCurrentPage = 1;
   hTotalPages = 1;
   hTotalItems = 0;
+
+  // Damaged state
+  damagedItems = signal<any[]>([]);
+  dCurrentPage = 1;
+  dTotalPages = 1;
+  dTotalItems = 0;
 
   saving = signal(false);
   totalToday = signal(0);
@@ -418,8 +647,11 @@ export class EggsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadData();
+    this.loadHistory();
+    this.loadDamagedData();
     this.eggTypesService.getAll().subscribe((t) => this.eggTypes.set(t));
     this.flocksService.getAll().subscribe((f) => this.flocks.set(Array.isArray(f) ? f.filter((fl) => fl.estado === 'ACTIVO') : []));
+    this.barnsService.getAll().subscribe((b) => this.barns.set(Array.isArray(b) ? b : []));
 
     this.searchSubject.pipe(debounceTime(300)).subscribe(() => {
       this.currentPage = 1;
@@ -435,9 +667,31 @@ export class EggsComponent implements OnInit {
     this.activeTab.set(tab);
     if (tab === 'historial') {
       this.loadHistory();
+    } else if (tab === 'danados') {
+      this.loadDamagedData();
     } else if (tab === 'inventario') {
       this.loadData();
     }
+  }
+
+  onDamagedPageChange(page: number): void {
+    this.dCurrentPage = page;
+    this.loadDamagedData();
+  }
+
+  loadDamagedData(): void {
+    this.loading.set(true);
+    const params: any = { page: this.dCurrentPage, limit: this.limit };
+    this.eggService.getDamagedPaginated(params).subscribe({
+      next: (res: any) => {
+        this.damagedItems.set(res.data);
+        this.dTotalItems = res.total;
+        this.dTotalPages = res.totalPages;
+        this.dCurrentPage = res.page;
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
   }
 
   onHistoryPeriodChange(): void {
@@ -468,7 +722,6 @@ export class EggsComponent implements OnInit {
 
   private loadData(): void {
     this.loading.set(true);
-    // For now we use the inventory paginated method
     const params: any = { page: this.currentPage, limit: this.limit };
     if (this.searchQuery) params.search = this.searchQuery;
     
@@ -479,15 +732,22 @@ export class EggsComponent implements OnInit {
         this.totalItems = res.total;
         this.totalPages = res.totalPages;
         this.currentPage = res.page;
-        this.totalToday.set(res.data.reduce((s: number, e: any) => s + (e.cantidad || 0), 0));
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
     });
+
+    // Fetch full inventory for stats calculation (non-paginated)
+    this.eggService.getAll({ limit: 1000 }).subscribe({
+      next: (data: any[]) => {
+        this.statsInventory.set(data);
+        this.totalToday.set(data.reduce((s: number, e: any) => s + (e.cantidad || 0), 0));
+      }
+    });
   }
 
   getCountByType(typeId: string): number {
-    return this.inventory().filter((e) => e.tipo_huevo?.id_tipo === typeId).reduce((s, e) => s + (e.cantidad || 0), 0);
+    return this.statsInventory().filter((e) => e.tipo_huevo?.id_tipo === typeId).reduce((s, e) => s + (e.cantidad || 0), 0);
   }
 
   filterInventory(): void {
@@ -521,6 +781,7 @@ export class EggsComponent implements OnInit {
         this.toast.success('Producción registrada exitosamente');
         this.classifyForm.reset();
         this.loadData();
+        this.refreshService.notifyDataChanged();
       },
       error: (err) => {
         const msg = err?.error?.message;
@@ -550,12 +811,75 @@ export class EggsComponent implements OnInit {
         this.toast.success('Huevos dañados registrados');
         this.showDamagedModal.set(false);
         this.loadData();
+        this.loadDamagedData();
+        this.refreshService.notifyDataChanged();
       },
       error: (err) => {
         const msg = err?.error?.message;
         this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al registrar dañados');
       },
       complete: () => this.saving.set(false),
+    });
+  }
+
+  simulateAutoClassification(): void {
+    if (!this.selectedAutoLoteId()) {
+      this.toast.error('Debe seleccionar un lote para clasificar');
+      return;
+    }
+    if (this.cameraStatus() !== 'conectado') {
+      this.toast.error('La cámara seleccionada está desconectada');
+      return;
+    }
+
+    this.saving.set(true);
+
+    // Simulate weight between 30g and 80g
+    const weight = Math.floor(Math.random() * 50) + 30;
+    this.lastDetectedWeight.set(weight);
+
+    // Determine type:
+    // Jumbo: > 73g
+    // AAA: 63-73g
+    // AA: 53-63g
+    // A: 43-53g
+    // B: 33-43g
+    // C: < 33g
+    let typeName = 'C';
+    if (weight > 73) typeName = 'Jumbo';
+    else if (weight >= 63) typeName = 'AAA';
+    else if (weight >= 53) typeName = 'AA';
+    else if (weight >= 43) typeName = 'A';
+    else if (weight >= 33) typeName = 'B';
+
+    this.lastDetectedType.set(typeName);
+
+    const matchingType = this.eggTypes().find(t => t.tipo.toLowerCase() === typeName.toLowerCase());
+    if (!matchingType) {
+      this.toast.error(`Tipo de huevo "${typeName}" no configurado en el sistema`);
+      this.saving.set(false);
+      return;
+    }
+
+    const payload = {
+      loteId: this.selectedAutoLoteId(),
+      tipoHuevoId: matchingType.id_tipo,
+      cantidad: this.autoQuantity() || 1
+    };
+
+    this.eggService.registerProduction(payload).subscribe({
+      next: () => {
+        this.toast.success(`Capturado: ${weight}g (${typeName}). Registrado exitosamente.`);
+        this.loadData();
+        this.loadHistory();
+        this.loadDamagedData();
+        this.refreshService.notifyDataChanged();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al registrar la producción automática');
+      },
+      complete: () => this.saving.set(false)
     });
   }
 }

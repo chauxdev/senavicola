@@ -1,7 +1,9 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FlocksService, BarnsService, EggInventoryService, SuppliesService, DashboardApiService } from '../../core/services/api.services';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
+import { Subscription } from 'rxjs';
+import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
 
 Chart.register(...registerables);
 
@@ -150,8 +152,10 @@ Chart.register(...registerables);
     @media (max-width: 768px) { .dashboard_cards { grid-template-columns: 1fr; } }
   `],
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private dashboardApiService = inject(DashboardApiService);
+  private refreshService = inject(DashboardRefreshService);
+  private refreshSub?: Subscription;
 
   totalHuevos = signal(0);
   totalGallinas = signal(0);
@@ -164,25 +168,36 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadData();
+    this.refreshSub = this.refreshService.refresh$.subscribe(() => {
+      this.loadData();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshSub) {
+      this.refreshSub.unsubscribe();
+    }
+    this.destroyCharts();
   }
 
   private loadData(): void {
     this.dashboardApiService.getStats().subscribe({
       next: (stats) => {
-        const { totals, charts } = stats;
+        const totals = stats?.totals ?? {};
+        const charts = stats?.charts ?? {};
         
-        this.totalHuevos.set(totals.huevos);
-        this.totalGallinas.set(totals.gallinas);
-        this.totalLotes.set(totals.lotes);
-        this.totalClasificados.set(totals.clasificados);
-        this.totalGalpones.set(totals.galpones);
-        this.totalInsumos.set(totals.insumos);
+        this.totalHuevos.set(totals.huevos ?? 0);
+        this.totalGallinas.set(totals.gallinas ?? 0);
+        this.totalLotes.set(totals.lotes ?? 0);
+        this.totalClasificados.set(totals.clasificados ?? 0);
+        this.totalGalpones.set(totals.galpones ?? 0);
+        this.totalInsumos.set(totals.insumos ?? 0);
 
         this.destroyCharts();
-        this.renderHuevosChart(charts.huevosPorTipo);
-        this.renderInsumosChart(charts.insumosPorCategoria);
-        this.renderProduccionChart(charts.produccionPorDia);
-        this.renderGallinasChart(charts.estadoGallinas);
+        this.renderHuevosChart(charts.huevosPorTipo ?? {});
+        this.renderInsumosChart(charts.insumosPorCategoria ?? {});
+        this.renderProduccionChart(charts.produccionPorDia ?? {});
+        this.renderGallinasChart(charts.estadoGallinas ?? {});
       },
       error: (err) => console.error('Error loading dashboard stats', err)
     });

@@ -23,7 +23,7 @@ export class BarnsConfigComponent {
   fields: CrudField[] = [
     { key: 'codigo', label: 'Código', type: 'text', placeholder: 'Ej: G-001', required: true },
     { key: 'nombre', label: 'Nombre', type: 'text', placeholder: 'Ej: Galpón 1', required: true },
-    { key: 'capacidadMaxAves', label: 'Capacidad Máx. Aves', type: 'number', placeholder: 'Ej: 500', required: true },
+    { key: 'capacidad_max_aves', label: 'Capacidad Máx. Aves', type: 'number', placeholder: 'Ej: 500', required: true },
     { key: 'longitud', label: 'Longitud (m)', type: 'number', placeholder: 'Ej: 20', required: true },
   ];
 }

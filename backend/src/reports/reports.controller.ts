@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Res } from '@nestjs/common';
+import express from 'express';
 import { ReportsService } from './reports.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,6 +21,15 @@ export class ReportsController {
   @RequirePermission('REPORTES_VER')
   findAll() {
     return this.service.findAll();
+  }
+
+  @Get(':id/download')
+  @RequirePermission('REPORTES_VER')
+  async download(@Param('id') id: string, @Res() res: express.Response) {
+    const { filename, buffer } = await this.service.generateCsvBuffer(id);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send(buffer);
   }
 
   @Get(':id')

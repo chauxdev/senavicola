@@ -20,6 +20,9 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
 
@@ -29,9 +32,9 @@ async function bootstrap() {
   // Interceptor de respuesta uniforme
   app.useGlobalInterceptors(new ResponseInterceptor());
 
-  // CORS configurable
+  // CORS configurable (dinámico para permitir desarrollo local sin fricciones)
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+    origin: true,
     credentials: true,
   });
 

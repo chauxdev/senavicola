@@ -25,6 +25,12 @@ export class EggInventoryController {
     return this.service.registerDamaged(dto);
   }
 
+  @Get('danados')
+  @RequirePermission('HUEVOS_VER')
+  findDamaged(@Query() paginationDto: PaginationDto) {
+    return this.service.findDamaged(paginationDto);
+  }
+
   @Get()
   @RequirePermission('HUEVOS_VER')
   findAll(@Query() paginationDto: PaginationDto) {

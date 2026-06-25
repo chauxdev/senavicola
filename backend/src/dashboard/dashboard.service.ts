@@ -63,24 +63,21 @@ export class DashboardService {
     }
 
     return {
-      message: 'Estadísticas del dashboard',
-      data: {
-        totals: {
-          huevos: totalHuevos,
-          gallinas: totalGallinas,
-          lotes: totalLotes,
-          clasificados: totalClasificados,
-          galpones: totalGalpones,
-          insumos: totalInsumos,
-        },
-        charts: {
-          huevosPorTipo,
-          insumosPorCategoria,
-          produccionPorDia,
-          estadoGallinas: {
-            activas: totalGallinas,
-            finalizadas: gallinasFinalizadas
-          }
+      totals: {
+        huevos: totalHuevos,
+        gallinas: totalGallinas,
+        lotes: totalLotes,
+        clasificados: totalClasificados,
+        galpones: totalGalpones,
+        insumos: totalInsumos,
+      },
+      charts: {
+        huevosPorTipo,
+        insumosPorCategoria,
+        produccionPorDia,
+        estadoGallinas: {
+          activas: totalGallinas,
+          finalizadas: gallinasFinalizadas
         }
       }
     };

@@ -8,28 +8,24 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Supply, SupplyCategory, MeasurementUnit } from '../../core/models';
+import { ModuleHeaderComponent } from '../../shared/components/module-header/module-header.component';
+import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
 
 @Component({
   selector: 'app-supplies',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, PaginationComponent, ModuleHeaderComponent],
   template: `
     <div class="supplies-page">
       <!-- Header del Módulo -->
-      <div class="header_modulo">
-        <div class="header_modulo_izq">
-          <i class="fas fa-box icono_modulo"></i>
-          <div>
-            <h2 class="titulo_modulo">Gestión de Insumos</h2>
-            <p class="subtitulo_modulo">Registra los alimentos y materiales que usa la granja.</p>
-          </div>
-        </div>
-        <div class="header_modulo_der">
-          <button class="btn_verde" (click)="openModal()">
-            <i class="fas fa-plus"></i> Registrar Insumo
-          </button>
-        </div>
-      </div>
+      <app-module-header 
+        title="Gestión de Insumos" 
+        description="Registra los alimentos y materiales que usa la granja." 
+        icon="fa-box">
+        <button class="btn-green" (click)="openModal()">
+          <i class="fas fa-plus"></i> Registrar Insumo
+        </button>
+      </app-module-header>
 
       <!-- Cards de Estadísticas -->
       <div class="contenedor_cards">
@@ -266,6 +262,7 @@ export class SuppliesComponent implements OnInit {
   private unitsService = inject(MeasurementUnitsService);
   private authService = inject(AuthService);
   private toast = inject(ToastService);
+  private refreshService = inject(DashboardRefreshService);
 
   loading = signal(true);
   supplies = signal<Supply[]>([]);
@@ -401,6 +398,7 @@ export class SuppliesComponent implements OnInit {
         this.toast.success(editing ? 'Insumo actualizado' : 'Insumo registrado exitosamente');
         this.closeModal();
         this.loadData();
+        this.refreshService.notifyDataChanged();
       },
       error: (err) => {
         const msg = err?.error?.message;
@@ -414,7 +412,11 @@ export class SuppliesComponent implements OnInit {
   deleteSupply(id: string): void {
     this.requestConfirm('¿Eliminar este insumo?', () => {
       this.suppliesService.delete(id).subscribe({
-        next: () => { this.toast.success('Insumo eliminado'); this.loadData(); },
+        next: () => {
+          this.toast.success('Insumo eliminado');
+          this.loadData();
+          this.refreshService.notifyDataChanged();
+        },
         error: () => this.toast.error('Error al eliminar el insumo'),
       });
     });

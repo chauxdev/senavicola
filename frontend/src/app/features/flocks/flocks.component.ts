@@ -8,33 +8,29 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 import { ToastService } from '../../core/services/toast.service';
 import { PermissionsService } from '../../core/services/permissions.service';
 import { Flock, Barn, Breed } from '../../core/models';
+import { ModuleHeaderComponent } from '../../shared/components/module-header/module-header.component';
+import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
 
 @Component({
   selector: 'app-flocks',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, PaginationComponent, ModuleHeaderComponent],
   template: `
     <div class="flocks-page">
       <!-- Module Header -->
-      <div class="module-header">
-        <div class="module-header-left">
-          <div class="module-icon"><i class="fas fa-dove"></i></div>
-          <div>
-            <h2>Gestión de Gallinas por Galpón</h2>
-            <p>Registra lotes, galpones y controla tus gallinas fácilmente.</p>
-          </div>
-        </div>
-        <div class="module-header-right">
-          @if (permissions.canWrite()) {
-            <button class="btn-green" (click)="openModal('flock')">
-              <i class="fas fa-plus"></i> Registrar Lote
-            </button>
-            <button class="btn-outline" (click)="openModal('barn')">
-              <i class="fas fa-plus"></i> Registrar Galpón
-            </button>
-          }
-        </div>
-      </div>
+      <app-module-header 
+        title="Gestión de Gallinas por Galpón" 
+        description="Registra lotes, galpones y controla tus gallinas fácilmente." 
+        icon="fa-dove">
+        @if (permissions.canWrite()) {
+          <button class="btn-green" (click)="openModal('flock')">
+            <i class="fas fa-plus"></i> Registrar Lote
+          </button>
+          <button class="btn-outline" (click)="openModal('barn')">
+            <i class="fas fa-plus"></i> Registrar Galpón
+          </button>
+        }
+      </app-module-header>
 
       <!-- Stats -->
       <div class="stats-grid">
@@ -310,7 +306,7 @@ import { Flock, Barn, Breed } from '../../core/models';
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-users"></i> Capacidad Máx. Aves</label>
-                  <input type="number" formControlName="capacidadMaxAves" placeholder="Ej: 500" min="1" />
+                  <input type="number" formControlName="capacidad_max_aves" placeholder="Ej: 500" min="1" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-ruler-horizontal"></i> Longitud (m)</label>
@@ -400,6 +396,7 @@ export class FlocksComponent implements OnInit {
   private breedsService = inject(BreedsService);
   private toast = inject(ToastService);
   public permissions = inject(PermissionsService);
+  private refreshService = inject(DashboardRefreshService);
 
   loading = signal(true);
   flocks = signal<Flock[]>([]);
@@ -442,11 +439,11 @@ export class FlocksComponent implements OnInit {
     racion_alimento: ['', Validators.required],
   });
 
-  // Form matching CreateBarnDto: { codigo, nombre, capacidadMaxAves, longitud }
+  // Form matching CreateBarnDto: { codigo, nombre, capacidad_max_aves, longitud }
   barnForm = this.fb.group({
     codigo: ['', Validators.required],
     nombre: ['', Validators.required],
-    capacidadMaxAves: [null as number | null, [Validators.required, Validators.min(1)]],
+    capacidad_max_aves: [null as number | null, [Validators.required, Validators.min(1)]],
     longitud: [null as number | null, [Validators.required, Validators.min(1)]],
   });
 
@@ -495,9 +492,10 @@ export class FlocksComponent implements OnInit {
   }
 
   filterFlocks(): void {
-    // Legacy filter
     const q = this.searchQuery.toLowerCase();
-    this.filteredFlocks.set(this.flocks().filter((f) => `${f.nombre} ${f.raza?.nombre}`.toLowerCase().includes(q)));
+    this.filteredFlocks.set(this.flocks().filter((f) =>
+      `${f.nombre} ${f.raza?.nombre} ${f.ubicacion?.[0]?.galpon?.nombre || ''} ${f.ubicacion?.[0]?.galpon?.codigo || ''}`.toLowerCase().includes(q)
+    ));
   }
 
   openModal(type: 'flock' | 'barn'): void {
@@ -516,7 +514,12 @@ export class FlocksComponent implements OnInit {
     this.savingFlock.set(true);
     const data = this.flockForm.value;
     this.flocksService.create(data as Partial<Flock>).subscribe({
-      next: () => { this.toast.success('Lote registrado exitosamente'); this.closeModals(); this.loadData(); },
+      next: () => {
+        this.toast.success('Lote registrado exitosamente');
+        this.closeModals();
+        this.loadData();
+        this.refreshService.notifyDataChanged();
+      },
       error: (err) => {
         const msg = err?.error?.message;
         this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al registrar el lote');
@@ -532,7 +535,12 @@ export class FlocksComponent implements OnInit {
     const editing = this.editingBarn();
     const req = editing ? this.barnsService.update(editing.id_galpon, data) : this.barnsService.create(data);
     req.subscribe({
-      next: () => { this.toast.success(editing ? 'Galpón actualizado' : 'Galpón registrado'); this.closeModals(); this.loadData(); },
+      next: () => {
+        this.toast.success(editing ? 'Galpón actualizado' : 'Galpón registrado');
+        this.closeModals();
+        this.loadData();
+        this.refreshService.notifyDataChanged();
+      },
       error: (err) => {
         const msg = err?.error?.message;
         this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el galpón');
@@ -545,7 +553,7 @@ export class FlocksComponent implements OnInit {
     this.barnForm.patchValue({
       codigo: barn.codigo,
       nombre: barn.nombre,
-      capacidadMaxAves: barn.capacidad_max_aves ?? null,
+      capacidad_max_aves: barn.capacidad_max_aves ?? null,
       longitud: barn.longitud ?? null,
     });
     this.showBarnModal.set(true);
@@ -554,7 +562,11 @@ export class FlocksComponent implements OnInit {
   deleteBarn(id: string): void {
     this.requestConfirm('¿Eliminar este galpón?', () => {
       this.barnsService.delete(id).subscribe({
-        next: () => { this.toast.success('Galpón eliminado'); this.loadData(); },
+        next: () => {
+          this.toast.success('Galpón eliminado');
+          this.loadData();
+          this.refreshService.notifyDataChanged();
+        },
         error: () => this.toast.error('Error al eliminar el galpón'),
       });
     });
@@ -572,7 +584,12 @@ export class FlocksComponent implements OnInit {
     this.savingDeadBirds.set(true);
     const data = { id_lote: flock.id_lote, ...this.deadBirdsForm.value };
     this.flocksService.registerDeadBirds(data as unknown as { id_lote: string; cantidad: number; fecha?: string; motivo?: string }).subscribe({
-      next: () => { this.toast.success('Registro de aves muertas guardado'); this.closeModals(); this.loadData(); },
+      next: () => {
+        this.toast.success('Registro de aves muertas guardado');
+        this.closeModals();
+        this.loadData();
+        this.refreshService.notifyDataChanged();
+      },
       error: () => { this.toast.error('Error al registrar aves muertas'); this.savingDeadBirds.set(false); },
       complete: () => this.savingDeadBirds.set(false),
     });
@@ -581,7 +598,11 @@ export class FlocksComponent implements OnInit {
   finalizeFlock(flock: Flock): void {
     this.requestConfirm(`¿Finalizar el Lote "${flock.nombre}"? Esta acción no se puede deshacer.`, () => {
       this.flocksService.finalizeFlock({ id_lote: flock.id_lote }).subscribe({
-        next: () => { this.toast.success('Lote finalizado exitosamente'); this.loadData(); },
+        next: () => {
+          this.toast.success('Lote finalizado exitosamente');
+          this.loadData();
+          this.refreshService.notifyDataChanged();
+        },
         error: () => this.toast.error('Error al finalizar el lote'),
       });
     });

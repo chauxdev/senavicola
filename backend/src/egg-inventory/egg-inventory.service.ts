@@ -124,6 +124,26 @@ export class EggInventoryService {
     };
   }
 
+  async findDamaged(paginationDto: PaginationDto) {
+    const qb = this.damagedRepo.createQueryBuilder('damaged')
+      .leftJoinAndSelect('damaged.inventario', 'inventario')
+      .leftJoinAndSelect('inventario.tipo_huevo', 'tipo')
+      .leftJoinAndSelect('inventario.lote', 'lote')
+      .orderBy('damaged.registeredAt', 'DESC');
+
+    if (paginationDto.search) {
+      const s = `%${paginationDto.search}%`;
+      qb.andWhere('(damaged.razon ILIKE :search OR lote.nombre ILIKE :search)', { search: s });
+    }
+
+    const paginatedResult = await paginateAndRespond(qb, paginationDto);
+
+    return {
+      message: 'Lista de huevos dañados obtenida',
+      ...paginatedResult,
+    };
+  }
+
   async findOne(id: string) {
     const inv = await this.inventoryRepo.findOne({
       where: { id_inventario_huevo: id },
