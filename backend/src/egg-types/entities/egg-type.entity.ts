@@ -8,9 +8,9 @@ export class EggType {
   @Column({ length: 255 })
   tipo!: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  peso_min!: number;
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  peso_min!: number | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  peso_max!: number;
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  peso_max!: number | null;
 }

@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { SupplyHistoryService } from './supply-history.service';
 import { CreateSupplyHistoryDto } from './dto/create-supply-history.dto';
@@ -25,7 +26,10 @@ export class SupplyHistoryController {
 
   @Get()
   @RequirePermission('INSUMOS_VER')
-  findAll() {
+  findAll(@Query() query: any) {
+    if (query.page || query.limit || query.search || query.tipo) {
+      return this.supplyHistoryService.findAllPaginated(query);
+    }
     return this.supplyHistoryService.findAll();
   }
 

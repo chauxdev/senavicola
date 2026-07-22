@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
 import { BaseApiService } from '../../../core/services/base-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
 
 export interface CrudField {
   key: string;
@@ -54,22 +55,22 @@ export interface CrudField {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th style="width: 60px;">#</th>
                   @for (field of fields; track field.key) { <th>{{ field.label }}</th> }
                   @if (permissions.canWrite()) {
-                    <th>Acciones</th>
+                    <th style="text-align: right; width: 120px;">Acciones</th>
                   }
                 </tr>
               </thead>
               <tbody>
                 @for (item of filtered(); track $index) {
                   <tr>
-                    <td><span class="badge active">{{ getItemIdShort(item) }}</span></td>
+                    <td><strong>{{ $index + 1 }}</strong></td>
                     @for (field of fields; track field.key) {
                       <td>{{ asRecord(item)[field.key] || '—' }}</td>
                     }
                     @if (permissions.canWrite()) {
-                      <td class="actions-cell">
+                      <td class="actions-cell" style="text-align: right; justify-content: flex-end;">
                         <button class="btn-icon edit" (click)="editItem(item)"><i class="fas fa-edit"></i></button>
                         <button class="btn-icon delete" (click)="deleteItem(getItemId(item))"><i class="fas fa-trash"></i></button>
                       </td>
@@ -137,6 +138,7 @@ export class SimpleCrudComponent<T> implements OnInit {
 
   private fb = inject(FormBuilder);
   private toast = inject(ToastService);
+  private confirmService = inject(ConfirmService);
   public permissions = inject(PermissionsService);
 
   loading = signal(true);
@@ -234,11 +236,29 @@ export class SimpleCrudComponent<T> implements OnInit {
     });
   }
 
-  deleteItem(id: string | number): void {
-    if (!confirm(`¿Eliminar este ${this.entityName}?`)) return;
+  async deleteItem(id: string | number) {
+    let itemDetail = '';
+    const itemObj = this.items().find(it => this.getItemId(it) === id);
+    if (itemObj) {
+      const rec = itemObj as Record<string, any>;
+      itemDetail = rec['nombre'] || rec['nombre_categoria'] || rec['nombre_rol'] || rec['nombre_permiso'] || rec['tipo'] || rec['abreviatura'] || '';
+    }
+
+    const msg = itemDetail 
+      ? `¿Estás seguro de que deseas eliminar ${this.entityName.toLowerCase()} '${itemDetail}'? Esta acción no se puede deshacer.`
+      : `¿Estás seguro de que deseas eliminar este ${this.entityName.toLowerCase()}? Esta acción no se puede deshacer.`;
+
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: msg
+    });
+
+    if (!confirmed) return;
+
     this.service.delete(id).subscribe({
       next: () => { this.toast.success(`${this.entityName} eliminado`); this.load(); },
       error: () => this.toast.error('Error al eliminar'),
     });
   }
 }
+

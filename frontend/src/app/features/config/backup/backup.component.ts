@@ -52,6 +52,7 @@ interface BackupFile {
             <table class="tabla" style="width: 100%; border-collapse: collapse;">
               <thead>
                 <tr>
+                  <th style="padding: 1.5rem; text-align: left; font-size: 1.4rem; font-weight: 700; border-bottom: 2px solid #e0e0e0; background: #f5f5f5; width: 60px;">#</th>
                   <th style="padding: 1.5rem; text-align: left; font-size: 1.4rem; font-weight: 700; border-bottom: 2px solid #e0e0e0; background: #f5f5f5;">Archivo</th>
                   <th style="padding: 1.5rem; text-align: left; font-size: 1.4rem; font-weight: 700; border-bottom: 2px solid #e0e0e0; background: #f5f5f5;">Tamaño</th>
                   <th style="padding: 1.5rem; text-align: left; font-size: 1.4rem; font-weight: 700; border-bottom: 2px solid #e0e0e0; background: #f5f5f5;">Fecha</th>
@@ -59,8 +60,9 @@ interface BackupFile {
                 </tr>
               </thead>
               <tbody>
-                @for (backup of backups(); track backup.filename) {
+                @for (backup of backups(); track backup.filename; let idx = $index) {
                   <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 1.5rem; font-size: 1.4rem;"><strong>{{ idx + 1 }}</strong></td>
                     <td style="padding: 1.5rem; font-size: 1.4rem;">
                       <i class="fas fa-file-alt" style="color: var(--primary-green); margin-right: 0.5rem;"></i>
                       {{ backup.filename }}
@@ -68,8 +70,8 @@ interface BackupFile {
                     <td style="padding: 1.5rem; font-size: 1.4rem;">{{ formatSize(backup.size) }}</td>
                     <td style="padding: 1.5rem; font-size: 1.4rem;">{{ backup.createdAt | date:'short' }}</td>
                     <td style="padding: 1.5rem;">
-                      <button class="btn-restore" (click)="confirmRestore(backup)" [disabled]="restoring()">
-                        <i class="fas fa-undo"></i> Restaurar
+                      <button class="btn-icon edit" title="Restaurar" (click)="confirmRestore(backup)" [disabled]="restoring()">
+                        <i class="fas fa-undo"></i>
                       </button>
                     </td>
                   </tr>
@@ -79,18 +81,18 @@ interface BackupFile {
           </div>
         }
       </div>
-
+ 
       <!-- Restore Confirmation Modal -->
       @if (showRestoreModal()) {
         <div class="modal-overlay" (click)="showRestoreModal.set(false)">
           <div class="modal-card" (click)="$event.stopPropagation()">
             <div class="modal-header">
-              <h3><i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> Confirmar Restauración</h3>
-              <button class="btn-close" (click)="showRestoreModal.set(false)">&times;</button>
+              <h3><i class="fas fa-exclamation-triangle text-danger"></i> Confirmar Restauración</h3>
+              <button class="btn-close" (click)="showRestoreModal.set(false)"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
               <div style="text-align: center; padding: 2rem 0;">
-                <i class="fas fa-exclamation-triangle" style="font-size: 5rem; color: var(--warning); margin-bottom: 1.5rem; display: block;"></i>
+                <i class="fas fa-exclamation-triangle" style="font-size: 5rem; color: var(--danger); margin-bottom: 1.5rem; display: block;"></i>
                 <h3 style="font-size: 1.8rem; margin-bottom: 1rem;">¿Estás seguro?</h3>
                 <p style="font-size: 1.4rem; color: var(--gray-dark);">Esta acción restaurará la base de datos al estado del backup seleccionado. Los datos actuales podrían perderse.</p>
                 <p style="font-size: 1.3rem; color: var(--text-dark); margin-top: 1rem; font-weight: 600;">
@@ -112,22 +114,6 @@ interface BackupFile {
   `,
   styles: [`
     .backup-actions { margin-bottom: 2.5rem; }
-    .btn-restore {
-      background: var(--info);
-      color: white;
-      border: none;
-      padding: 0.8rem 1.5rem;
-      border-radius: 6px;
-      font-size: 1.3rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      transition: all 0.3s;
-    }
-    .btn-restore:hover { background: #1976d2; }
-    .btn-restore:disabled { opacity: 0.6; cursor: not-allowed; }
   `],
 })
 export class BackupComponent implements OnInit {

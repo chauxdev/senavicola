@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 
 import { EggInventoryService } from './egg-inventory.service';
 import { RegisterEggProductionDto } from './dto/register-egg-production.dto';
 import { RegisterDamagedEggsDto } from './dto/register-damaged-eggs.dto';
+import { UpdateEggInventoryDto } from './dto/update-egg-inventory.dto';
+import { EggFilterDto } from './dto/egg-filter.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -27,13 +29,13 @@ export class EggInventoryController {
 
   @Get('danados')
   @RequirePermission('HUEVOS_VER')
-  findDamaged(@Query() paginationDto: PaginationDto) {
+  findDamaged(@Query() paginationDto: EggFilterDto) {
     return this.service.findDamaged(paginationDto);
   }
 
   @Get()
   @RequirePermission('HUEVOS_VER')
-  findAll(@Query() paginationDto: PaginationDto) {
+  findAll(@Query() paginationDto: EggFilterDto) {
     return this.service.findAll(paginationDto);
   }
 
@@ -53,5 +55,17 @@ export class EggInventoryController {
   @RequirePermission('HUEVOS_VER')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Patch(':id')
+  @RequirePermission('HUEVOS_EDITAR')
+  update(@Param('id') id: string, @Body() dto: UpdateEggInventoryDto) {
+    return this.service.update(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission('HUEVOS_EDITAR')
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 }

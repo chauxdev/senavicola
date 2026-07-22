@@ -45,7 +45,7 @@ export class FlocksService {
     private readonly barnRepo: Repository<Barn>,
   ) {}
 
-  async create(dto: CreateFlockDto) {
+  async create(dto: CreateFlockDto, userDisplayName?: string) {
     const existing = await this.flockRepo.findOne({
       where: { nombre: ILike(dto.nombre) },
     });
@@ -82,6 +82,10 @@ export class FlocksService {
       lote: saved,
       galpon,
       cantidad_asignada: dto.total_aves,
+      descripcion: 'Crear lote',
+      usuario: userDisplayName || 'Sistema',
+      nombre_elemento: saved.nombre,
+      raza_nombre: raza.nombre,
     });
     await this.historyRepo.save(history);
 
@@ -113,6 +117,32 @@ export class FlocksService {
     };
   }
 
+  async findAllHistory(paginationDto: PaginationDto & { loteId?: string }) {
+    const qb = this.historyRepo.createQueryBuilder('history')
+      .leftJoinAndSelect('history.lote', 'lote')
+      .leftJoinAndSelect('history.galpon', 'galpon')
+      .orderBy('history.fecha', 'DESC');
+
+    if (paginationDto.loteId) {
+      qb.andWhere('history.lote.id_lote = :loteId', { loteId: paginationDto.loteId });
+    }
+
+    if (paginationDto.search) {
+      const s = `%${paginationDto.search}%`;
+      qb.andWhere(
+        '(history.descripcion ILIKE :search OR history.usuario ILIKE :search OR history.nombre_elemento ILIKE :search OR history.raza_nombre ILIKE :search)',
+        { search: s },
+      );
+    }
+
+    const paginatedResult = await paginateAndRespond(qb, paginationDto);
+
+    return {
+      message: 'Historial de asignaciones obtenido',
+      ...paginatedResult,
+    };
+  }
+
   async findOne(id: string) {
     const flock = await this.flockRepo.findOne({
       where: { id_lote: id },
@@ -129,8 +159,11 @@ export class FlocksService {
     };
   }
 
-  async update(id: string, dto: UpdateFlockDto) {
-    const flock = await this.flockRepo.findOneBy({ id_lote: id });
+  async update(id: string, dto: UpdateFlockDto, userDisplayName?: string) {
+    const flock = await this.flockRepo.findOne({
+      where: { id_lote: id },
+      relations: ['raza', 'ubicacion', 'ubicacion.galpon'],
+    });
 
     if (!flock) {
       throw new NotFoundException(`Lote ${id} no encontrado`);
@@ -145,6 +178,37 @@ export class FlocksService {
       }
     }
 
+    // Insert history record BEFORE updating the flock
+    const currentGalpon = flock.ubicacion?.[0]?.galpon || null;
+    const changes: string[] = [];
+    if (dto.nombre && dto.nombre !== flock.nombre) {
+      changes.push(`Nombre de "${flock.nombre}" a "${dto.nombre}"`);
+    }
+    if (dto.total_aves !== undefined && dto.total_aves !== flock.total_aves) {
+      changes.push(`Aves de ${flock.total_aves} a ${dto.total_aves}`);
+    }
+    if (dto.observacion !== undefined && dto.observacion !== flock.observacion) {
+      changes.push(`Observación modificada`);
+    }
+    if (dto.racion_alimento !== undefined && dto.racion_alimento !== flock.racion_alimento) {
+      changes.push(`Ración modificada`);
+    }
+    if (dto.estado && dto.estado !== flock.estado) {
+      changes.push(`Estado de "${flock.estado}" a "${dto.estado}"`);
+    }
+    const descripcion = changes.length > 0 ? `Editar lote: ${changes.join(', ')}` : 'Editar lote';
+
+    const history = this.historyRepo.create({
+      lote: flock,
+      galpon: currentGalpon,
+      cantidad_asignada: dto.total_aves ?? flock.total_aves,
+      descripcion,
+      usuario: userDisplayName || 'Sistema',
+      nombre_elemento: dto.nombre || flock.nombre,
+      raza_nombre: flock.raza?.nombre || null,
+    });
+    await this.historyRepo.save(history);
+
     this.flockRepo.merge(flock, dto);
     const updated = await this.flockRepo.save(flock);
 
@@ -156,20 +220,30 @@ export class FlocksService {
     };
   }
 
-  async assignFlock(dto: AssignFlockDto) {
-    const lote = await this.flockRepo.findOneBy({ id_lote: dto.loteId });
+  async assignFlock(dto: AssignFlockDto, userDisplayName?: string) {
+    const lote = await this.flockRepo.findOne({
+      where: { id_lote: dto.loteId },
+      relations: ['raza'],
+    });
     if (!lote) throw new NotFoundException(`Lote ${dto.loteId} no encontrado`);
 
+    const galpon = await this.barnRepo.findOneBy({ id_galpon: dto.galponId });
+    if (!galpon) throw new NotFoundException(`Galpón ${dto.galponId} no encontrado`);
+
     const location = this.locationRepo.create({
-      lote: { id_lote: dto.loteId },
-      galpon: { id_galpon: dto.galponId },
+      lote,
+      galpon,
     });
     const savedLocation = await this.locationRepo.save(location);
 
     const history = this.historyRepo.create({
-      lote: { id_lote: dto.loteId },
-      galpon: { id_galpon: dto.galponId },
+      lote,
+      galpon,
       cantidad_asignada: dto.cantidad,
+      descripcion: `Asignar galpón: cambiado al galpón "${galpon.nombre}"`,
+      usuario: userDisplayName || 'Sistema',
+      nombre_elemento: lote.nombre,
+      raza_nombre: lote.raza?.nombre || null,
     });
     await this.historyRepo.save(history);
 

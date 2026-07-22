@@ -10,6 +10,7 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @Controller('flocks')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -18,14 +19,21 @@ export class FlocksController {
 
   @Post()
   @RequirePermission('LOTES_CREAR')
-  create(@Body() dto: CreateFlockDto) {
-    return this.flocksService.create(dto);
+  create(@Body() dto: CreateFlockDto, @GetUser() user: any) {
+    const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
+    return this.flocksService.create(dto, userDisplayName);
   }
 
   @Get()
   @RequirePermission('LOTES_VER')
   findAll(@Query() paginationDto: PaginationDto) {
     return this.flocksService.findAll(paginationDto);
+  }
+
+  @Get('historial')
+  @RequirePermission('LOTES_VER')
+  findAllHistory(@Query() query: PaginationDto & { loteId?: string }) {
+    return this.flocksService.findAllHistory(query);
   }
 
   @Get(':id')
@@ -36,14 +44,16 @@ export class FlocksController {
 
   @Patch(':id')
   @RequirePermission('LOTES_EDITAR')
-  update(@Param('id') id: string, @Body() dto: UpdateFlockDto) {
-    return this.flocksService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateFlockDto, @GetUser() user: any) {
+    const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
+    return this.flocksService.update(id, dto, userDisplayName);
   }
 
   @Post('asignar')
   @RequirePermission('LOTES_EDITAR')
-  assignFlock(@Body() dto: AssignFlockDto) {
-    return this.flocksService.assignFlock(dto);
+  assignFlock(@Body() dto: AssignFlockDto, @GetUser() user: any) {
+    const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
+    return this.flocksService.assignFlock(dto, userDisplayName);
   }
 
   @Post('aves-muertas')

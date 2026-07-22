@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { RolesService, PermissionsService } from '../../../core/services/api.services';
 import { ToastService } from '../../../core/services/toast.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
 import { Role, Permission } from '../../../core/models';
 
 @Component({
@@ -38,14 +39,14 @@ import { Role, Permission } from '../../../core/models';
         } @else {
           <div class="table-responsive">
             <table class="data-table">
-              <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
+              <thead><tr><th style="width: 60px;">#</th><th>Nombre</th><th>Descripción</th><th style="text-align: right; width: 120px;">Acciones</th></tr></thead>
               <tbody>
-                @for (role of filtered(); track role.id_rol) {
+                @for (role of filtered(); track role.id_rol; let idx = $index) {
                   <tr>
-                    <td>#{{ role.id_rol }}</td>
+                    <td><strong>{{ idx + 1 }}</strong></td>
                     <td><strong>{{ role.nombre }}</strong></td>
                     <td>{{ role.descripcion || '—' }}</td>
-                    <td class="actions-cell">
+                    <td class="actions-cell" style="justify-content: flex-end;">
                       <button class="btn-icon edit" (click)="editRole(role)"><i class="fas fa-edit"></i></button>
                       <button class="btn-icon delete" (click)="deleteRole(role.id_rol)"><i class="fas fa-trash"></i></button>
                     </td>
@@ -155,6 +156,7 @@ export class RolesComponent implements OnInit {
   private rolesService = inject(RolesService);
   private permissionsService = inject(PermissionsService);
   private toast = inject(ToastService);
+  private confirmService = inject(ConfirmService);
 
   loading = signal(true);
   roles = signal<Role[]>([]);
@@ -353,9 +355,21 @@ export class RolesComponent implements OnInit {
     });
   }
 
-  deleteRole(id: number): void {
-    if (!confirm('¿Eliminar este rol?')) return;
-    this.rolesService.delete(id).subscribe({ next: () => { this.toast.success('Rol eliminado'); this.loadRoles(); }, error: () => this.toast.error('Error al eliminar') });
+  async deleteRole(id: number) {
+    const role = this.roles().find(r => r.id_rol === id);
+    const roleName = role ? role.nombre : '';
+
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: `¿Estás seguro de que deseas eliminar el rol '${roleName}'? Esta acción no se puede deshacer.`
+    });
+
+    if (!confirmed) return;
+
+    this.rolesService.delete(id).subscribe({
+      next: () => { this.toast.success('Rol eliminado'); this.loadRoles(); },
+      error: () => this.toast.error('Error al eliminar'),
+    });
   }
 
   togglePermission(permissionId: number, checked: boolean): void {

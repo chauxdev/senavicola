@@ -1,6 +1,9 @@
 # 1. Usamos una imagen ligera de Node.js
 FROM node:20-alpine
 
+# Instalar postgresql-client para disponer de pg_dump y psql
+RUN apk add --no-cache postgresql-client
+
 # 2. Creamos el directorio de trabajo dentro de Docker
 WORKDIR /usr/src/app
 

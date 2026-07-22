@@ -165,6 +165,12 @@ export class FlocksService extends BaseApiService<Flock> {
   finalizeFlock(data: { id_lote: string; fecha_fin?: string; observacion?: string }): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/flocks/finalizar`, data);
   }
+
+  getHistory(params?: Record<string, any>): Observable<import('../models').PaginatedResponse<any>> {
+    return this.http.get<unknown>(`${this.baseUrl}/flocks/historial`, { params }).pipe(
+      map(response => extractData<import('../models').PaginatedResponse<any>>(response))
+    );
+  }
 }
 
 // ===== EGG TYPES =====
@@ -219,6 +225,12 @@ export class MeasurementUnitsService extends BaseApiService<MeasurementUnit> {
 @Injectable({ providedIn: 'root' })
 export class SuppliesService extends BaseApiService<Supply> {
   protected endpoint = 'supplies';
+
+  reabastecer(id: string, cantidad: number, motivo: string): Observable<Supply> {
+    return this.http.post<unknown>(`${this.url}/${id}/reabastecer`, { cantidad, motivo }).pipe(
+      map(response => extractData<Supply>(response))
+    );
+  }
 }
 
 // ===== SUPPLY HISTORY =====
@@ -230,6 +242,12 @@ export class SupplyHistoryService {
   getAll(): Observable<SupplyHistory[]> {
     return this.http.get<unknown>(`${this.baseUrl}/supply-history`).pipe(
       map(response => extractArray<SupplyHistory>(response))
+    );
+  }
+
+  getPaginated(params?: Record<string, any>): Observable<import('../models').PaginatedResponse<SupplyHistory>> {
+    return this.http.get<unknown>(`${this.baseUrl}/supply-history`, { params }).pipe(
+      map(response => extractData<import('../models').PaginatedResponse<SupplyHistory>>(response))
     );
   }
 

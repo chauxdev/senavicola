@@ -10,6 +10,7 @@ import { PermissionsService } from '../../core/services/permissions.service';
 import { EggInventory, EggType, Flock, Barn } from '../../core/models';
 import { ModuleHeaderComponent } from '../../shared/components/module-header/module-header.component';
 import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 
 @Component({
   selector: 'app-eggs',
@@ -113,8 +114,8 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
                   <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" />
                 </div>
                 <div class="form_group_btn" style="display: flex; align-items: flex-end;">
-                  <button type="submit" class="btn_clasificar" [disabled]="saving()" style="width: 100%; height: 45px;">
-                    <i class="fas fa-search"></i> Clasificar
+                  <button type="submit" class="btn_clasificar" [disabled]="saving()" style="width: 100%; height: 45px; justify-content: center;">
+                    <i class="fas fa-balance-scale"></i> Clasificar
                   </button>
                 </div>
               </div>
@@ -179,7 +180,7 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
               </div>
 
               <div style="display: flex; gap: 1.5rem;">
-                <button type="button" class="btn-green" (click)="cameraStatus.set(cameraStatus() === 'conectado' ? 'desconectado' : 'conectado')" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer;">
+                <button type="button" class="btn-green" (click)="cameraStatus.set(cameraStatus() === 'conectado' ? 'desconectado' : 'conectado')" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; justify-content: center; display: flex; align-items: center; gap: 0.5rem;">
                   <i class="fas" [class.fa-plug]="cameraStatus() !== 'conectado'" [class.fa-power-off]="cameraStatus() === 'conectado'"></i>
                   {{ cameraStatus() === 'conectado' ? 'Desconectar Cámara' : 'Conectar Cámara' }}
                 </button>
@@ -218,7 +219,7 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
                   <input type="number" [value]="autoQuantity()" (input)="autoQuantity.set($any($event.target).value)" min="1" max="100" />
                 </div>
 
-                <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado'" (click)="simulateAutoClassification()" style="width: 100%; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2);">
+                <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado'" (click)="simulateAutoClassification()" style="width: 100%; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2); justify-content: center;">
                   <i class="fas fa-camera"></i> Capturar Peso / Clasificar
                 </button>
               </div>
@@ -234,18 +235,19 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
               <div class="tabla_contenedor">
                 <table class="tabla">
                   <thead>
-                    <tr><th>Fecha/Hora</th><th>Lote</th><th>Tipo</th><th>Cant.</th></tr>
+                    <tr><th style="width: 50px;">#</th><th>Fecha/Hora</th><th>Lote</th><th>Tipo</th><th>Cant.</th></tr>
                   </thead>
                   <tbody>
-                    @for (item of historyItems().slice(0, 5); track item.id_produccion_huevo) {
+                    @for (item of historyItems().slice(0, 5); track item.id_produccion_huevo; let idx = $index) {
                       <tr>
+                        <td><strong>{{ idx + 1 }}</strong></td>
                         <td>{{ item.produccionFecha | date:'shortTime' }}</td>
                         <td>{{ item.lote?.nombre || '—' }}</td>
                         <td><span class="badge_estado disponible">{{ item.tipo_huevo?.tipo || '—' }}</span></td>
                         <td><strong>{{ item.cantidady }}</strong></td>
                       </tr>
                     } @empty {
-                      <tr><td colspan="4" style="text-align: center; color: #666; padding: 2rem;">No hay clasificaciones registradas hoy.</td></tr>
+                      <tr><td colspan="5" style="text-align: center; color: #666; padding: 2rem;">No hay clasificaciones registradas hoy.</td></tr>
                     }
                   </tbody>
                 </table>
@@ -259,18 +261,19 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
               <div class="tabla_contenedor">
                 <table class="tabla">
                   <thead>
-                    <tr><th>Lote</th><th>Tipo</th><th>Cant.</th><th>Razón</th></tr>
+                    <tr><th style="width: 50px;">#</th><th>Lote</th><th>Tipo</th><th>Cant.</th><th>Razón</th></tr>
                   </thead>
                   <tbody>
-                    @for (item of damagedItems().slice(0, 5); track $index) {
+                    @for (item of damagedItems().slice(0, 5); track $index; let idx = $index) {
                       <tr>
+                        <td><strong>{{ idx + 1 }}</strong></td>
                         <td>{{ item.inventario?.lote?.nombre || '—' }}</td>
                         <td><span class="badge_estado disponible">{{ item.inventario?.tipo_huevo?.tipo || '—' }}</span></td>
                         <td><strong style="color: #f44336;">{{ item.cantidad }}</strong></td>
                         <td>{{ item.razon || '—' }}</td>
                       </tr>
                     } @empty {
-                      <tr><td colspan="4" style="text-align: center; color: #666; padding: 2rem;">No hay huevos dañados registrados.</td></tr>
+                      <tr><td colspan="5" style="text-align: center; color: #666; padding: 2rem;">No hay huevos dañados registrados.</td></tr>
                     }
                   </tbody>
                 </table>
@@ -290,7 +293,7 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
 
         <div class="tabs_content">
           @if (activeTab() === 'inventario') {
-            <div class="controles_tabla" style="gap: 1rem;">
+            <div class="controles_tabla" style="gap: 1rem; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 2rem;">
               <select class="select_filtro" [(ngModel)]="filterType" (change)="filterInventory()">
                 <option value="todos">Todos los tipos</option>
                 @for (type of eggTypes(); track type.id_tipo) {
@@ -314,18 +317,37 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
               <div class="tabla_contenedor">
                 <table class="tabla">
                   <thead>
-                    <tr><th>Tipo</th><th>Cantidad</th><th>Lote</th><th>Acciones</th></tr>
+                    <tr>
+                      <th style="width: 60px;">#</th>
+                      <th>Tipo</th>
+                      <th>Cantidad</th>
+                      <th>Peso Promedio</th>
+                      <th>Fecha de Registro</th>
+                      <th>Lote</th>
+                      <th>Galpón</th>
+                      <th style="text-align: right; width: 150px;">Acciones</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    @for (item of filtered(); track item.id_inventario_huevo) {
+                    @for (item of filtered(); track item.id_inventario_huevo; let idx = $index) {
                       <tr>
+                        <td><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                         <td><span class="badge_estado disponible">{{ item.tipo_huevo?.tipo || '—' }}</span></td>
                         <td><strong>{{ item.cantidad }}</strong></td>
+                        <td>{{ getAverageWeight(item) }}</td>
+                        <td>{{ (item.produccion?.produccionFecha | date:'dd/MM/yyyy HH:mm') || '—' }}</td>
                         <td>{{ item.lote?.nombre || '—' }}</td>
-                        <td>
+                        <td>{{ item.lote?.ubicacion?.[0]?.galpon?.nombre || '—' }}</td>
+                        <td style="text-align: right; white-space: nowrap;">
                           @if (permissions.canWrite()) {
-                            <button class="btn_accion btn_editar" (click)="openDamagedModal(item)">
-                              <i class="fas fa-exclamation-circle"></i> Dañados
+                            <button class="btn-icon edit" title="Editar" (click)="openEditModal(item)" style="margin-right: 0.5rem;">
+                              <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon delete" title="Dejar Dañados" (click)="openDamagedModal(item)" style="margin-right: 0.5rem; color: #ff9800; background: rgba(255,152,0,0.1);">
+                              <i class="fas fa-exclamation-triangle"></i>
+                            </button>
+                            <button class="btn-icon delete" title="Eliminar" (click)="deleteInventory(item)">
+                              <i class="fas fa-trash-alt"></i>
                             </button>
                           }
                         </td>
@@ -344,6 +366,18 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
           }
 
           @if (activeTab() === 'danados') {
+            <div class="controles_tabla" style="gap: 1rem; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 2rem;">
+              <select class="select_filtro" [(ngModel)]="damagedFilterType" (change)="onDamagedFilterChange()">
+                <option value="todos">Todos los tipos</option>
+                @for (type of eggTypes(); track type.id_tipo) {
+                  <option [value]="type.tipo">{{ type.tipo }}</option>
+                }
+              </select>
+              <div class="search-bar" style="display: flex; align-items: center; border: 2px solid #e0e0e0; border-radius: 8px; padding: 0 1rem; background: white;">
+                <i class="fas fa-search" style="color: #666; margin-right: 0.5rem;"></i>
+                <input type="text" placeholder="Buscar lote..." style="border: none; outline: none; padding: 1.2rem 0; font-size: 1.5rem; width: 250px;" [(ngModel)]="damagedSearchQuery" (input)="onDamagedSearchInput()" />
+              </div>
+            </div>
             @if (loading()) {
               <div class="loading-container"><div class="spinner"></div></div>
             } @else if (damagedItems().length === 0) {
@@ -356,12 +390,13 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
               <div class="tabla_contenedor">
                 <table class="tabla">
                   <thead>
-                    <tr><th>Fecha</th><th>Lote</th><th>Tipo Huevo</th><th>Cantidad Dañada</th><th>Razón</th></tr>
+                    <tr><th style="width: 60px;">#</th><th>Fecha</th><th>Lote</th><th>Tipo Huevo</th><th>Cantidad Dañada</th><th>Razón</th></tr>
                   </thead>
                   <tbody>
-                    @for (item of damagedItems(); track $index) {
+                    @for (item of damagedItems(); track $index; let idx = $index) {
                       <tr>
-                        <td>{{ item.registeredAt | date:'short' }}</td>
+                        <td><strong>{{ (dCurrentPage - 1) * limit + idx + 1 }}</strong></td>
+                        <td>{{ item.registeredAt | date:'dd/MM/yyyy HH:mm' }}</td>
                         <td>{{ item.inventario?.lote?.nombre || '—' }}</td>
                         <td><span class="badge_estado disponible">{{ item.inventario?.tipo_huevo?.tipo || '—' }}</span></td>
                         <td><strong style="color: #f44336;">{{ item.cantidad }}</strong></td>
@@ -380,12 +415,16 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
             }
           }
           @if (activeTab() === 'historial') {
-            <div class="controles_tabla" style="gap: 1rem;">
+            <div class="controles_tabla" style="gap: 1rem; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 2rem;">
               <select class="select_filtro" [(ngModel)]="historyPeriod" (change)="onHistoryPeriodChange()">
                 <option value="semanal">Últimos 7 días</option>
                 <option value="mensual">Último mes</option>
                 <option value="trimestral">Últimos 3 meses</option>
               </select>
+              <div class="search-bar" style="display: flex; align-items: center; border: 2px solid #e0e0e0; border-radius: 8px; padding: 0 1rem; background: white;">
+                <i class="fas fa-search" style="color: #666; margin-right: 0.5rem;"></i>
+                <input type="text" placeholder="Buscar lote..." style="border: none; outline: none; padding: 1.2rem 0; font-size: 1.5rem; width: 250px;" [(ngModel)]="historySearchQuery" (input)="onHistorySearchInput()" />
+              </div>
             </div>
             @if (loading()) {
               <div class="loading-container"><div class="spinner"></div></div>
@@ -399,12 +438,13 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
               <div class="tabla_contenedor">
                 <table class="tabla">
                   <thead>
-                    <tr><th>Fecha</th><th>Lote</th><th>Tipo Huevo</th><th>Cantidad</th></tr>
+                    <tr><th style="width: 60px;">#</th><th>Fecha</th><th>Lote</th><th>Tipo Huevo</th><th>Cantidad</th></tr>
                   </thead>
                   <tbody>
-                    @for (item of historyItems(); track item.id_produccion_huevo) {
+                    @for (item of historyItems(); track item.id_produccion_huevo; let idx = $index) {
                       <tr>
-                        <td>{{ item.produccionFecha | date:'short' }}</td>
+                        <td><strong>{{ (hCurrentPage - 1) * limit + idx + 1 }}</strong></td>
+                        <td>{{ item.produccionFecha | date:'dd/MM/yyyy HH:mm' }}</td>
                         <td>{{ item.lote?.nombre || '—' }}</td>
                         <td>{{ item.tipo_huevo?.tipo || '—' }}</td>
                         <td><strong>{{ item.cantidady }}</strong></td>
@@ -425,32 +465,76 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
       </div>
     </div>
 
+    <!-- Modal Editar -->
+    @if (showEditModal()) {
+      <div class="modal-overlay" (click)="showEditModal.set(false)">
+        <div class="modal-card" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3><i class="fas fa-edit text-primary"></i> Editar Registro de Huevos</h3>
+            <button class="btn-close" (click)="showEditModal.set(false)"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="modal-body">
+            <form [formGroup]="editForm" (ngSubmit)="saveEdit()">
+              <div class="form-group">
+                <label>Seleccionar Lote <span class="requerido">*</span></label>
+                <select formControlName="loteId">
+                  <option value="">Seleccionar</option>
+                  @for (flock of flocks(); track flock.id_lote) {
+                    <option [value]="flock.id_lote">{{ flock.nombre }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Seleccionar Tipo de Huevo <span class="requerido">*</span></label>
+                <select formControlName="tipoHuevoId">
+                  <option value="">Seleccionar</option>
+                  @for (type of eggTypes(); track type.id_tipo) {
+                    <option [value]="type.id_tipo">{{ type.tipo }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Cantidad <span class="requerido">*</span></label>
+                <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" />
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-outline" (click)="showEditModal.set(false)">Cancelar</button>
+            <button type="submit" class="btn-green" (click)="saveEdit()" [disabled]="saving()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- Modal Dañados -->
     @if (showDamagedModal()) {
-      <div class="modal activo" (click)="showDamagedModal.set(false)">
-        <div class="modal_contenido" (click)="$event.stopPropagation()">
-          <div class="modal_header">
-            <div class="modal_header_icon"><i class="fas fa-exclamation-circle"></i></div>
-            <h3 class="modal_titulo">Actualizar Huevos Dañados</h3>
+      <div class="modal-overlay" (click)="showDamagedModal.set(false)">
+        <div class="modal-card" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle text-danger"></i> Registrar Huevos Dañados</h3>
+            <button class="btn-close" (click)="showDamagedModal.set(false)"><i class="fas fa-times"></i></button>
           </div>
-          <form [formGroup]="damagedForm" class="modal_form" (ngSubmit)="saveDamaged()">
-            <div class="form_group">
-              <label>Cantidad Disponible</label>
-              <input type="number" [value]="selectedInventory()?.cantidad || 0" readonly />
-            </div>
-            <div class="form_group">
-              <label>Cantidad Dañada</label>
-              <input type="number" formControlName="cantidad" placeholder="Ej: 5" min="1" />
-            </div>
-            <div class="form_group">
-              <label>Razón</label>
-              <input type="text" formControlName="razon" placeholder="Ej: Rotos en transporte" />
-            </div>
-            <div class="modal_botones">
-              <button type="button" class="btn_cancelar" (click)="showDamagedModal.set(false)">Cancelar</button>
-              <button type="submit" class="btn_registrar" [disabled]="saving()">Actualizar</button>
-            </div>
-          </form>
+          <div class="modal-body">
+            <form [formGroup]="damagedForm" (ngSubmit)="saveDamaged()">
+              <div class="form-group">
+                <label>Cantidad Disponible</label>
+                <input type="number" [value]="selectedInventory()?.cantidad || 0" readonly />
+              </div>
+              <div class="form-group">
+                <label>Cantidad Dañada <span class="requerido">*</span></label>
+                <input type="number" formControlName="cantidad" placeholder="Ej: 5" min="1" />
+              </div>
+              <div class="form-group">
+                <label>Razón <span class="requerido">*</span></label>
+                <input type="text" formControlName="razon" placeholder="Ej: Rotos en transporte" />
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-outline" (click)="showDamagedModal.set(false)">Cancelar</button>
+            <button type="submit" class="btn-green" (click)="saveDamaged()" [disabled]="saving()">Actualizar</button>
+          </div>
         </div>
       </div>
     }
@@ -506,7 +590,7 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
     .form_group input, .form_group select { padding: 1.2rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1.5rem; font-family: 'Work Sans', sans-serif; transition: all 0.3s; }
     .form_group input:focus, .form_group select:focus { outline: none; border-color: var(--primary-green); }
     .form_group_btn { display: flex; align-items: flex-end; }
-    .btn_clasificar { background: var(--primary-green); color: white; border: none; padding: 1.2rem 2.5rem; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.8rem; transition: all 0.3s; }
+    .btn_clasificar { background: var(--primary-green); color: white; border: none; padding: 1.2rem 2.5rem; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.8rem; transition: all 0.3s; }
     .btn_clasificar:hover { background: #2d8600; }
     .btn_clasificar:disabled { opacity: 0.6; cursor: not-allowed; }
 
@@ -531,25 +615,7 @@ import { DashboardRefreshService } from '../../core/services/dashboard-refresh.s
     .tabla tbody tr:hover { background: rgba(57,169,0,0.05); }
     .badge_estado { padding: 0.6rem 1.2rem; border-radius: 20px; font-size: 1.3rem; font-weight: 600; display: inline-block; }
     .badge_estado.disponible { background: #e8f5e9; color: #2e7d32; }
-    .btn_accion { padding: 0.8rem 1.5rem; border: none; border-radius: 6px; font-size: 1.3rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
-    .btn_editar { background: #2196f3; color: white; }
-    .btn_editar:hover { background: #1976d2; }
     .texto_placeholder { text-align: center; padding: 5rem; font-size: 1.8rem; color: #666; }
-
-    /* Modal */
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-    .modal_contenido { background: white; border-radius: 15px; width: 90%; max-width: 500px; box-shadow: 0 10px 20px rgba(0,0,0,0.15); animation: modalSlideIn 0.3s ease; }
-    @keyframes modalSlideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    .modal_header { background: var(--primary-green); color: white; padding: 2rem; border-radius: 15px 15px 0 0; display: flex; align-items: center; gap: 1.5rem; }
-    .modal_header_icon { width: 50px; height: 50px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.4rem; }
-    .modal_titulo { font-size: 2rem; font-weight: 700; }
-    .modal_form { padding: 2.5rem; }
-    .modal_botones { display: flex; gap: 1.5rem; margin-top: 2.5rem; }
-    .btn_cancelar { flex: 1; padding: 1.2rem 2rem; background: #e0e0e0; color: #333; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
-    .btn_cancelar:hover { background: #bdbdbd; }
-    .btn_registrar { flex: 1; padding: 1.2rem 2rem; background: var(--primary-green); color: white; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
-    .btn_registrar:hover { background: #2d8600; }
-    .btn_registrar:disabled { opacity: 0.6; cursor: not-allowed; }
 
     @keyframes scan {
       0% { top: 0; }
@@ -571,6 +637,7 @@ export class EggsComponent implements OnInit {
   private toast = inject(ToastService);
   public permissions = inject(PermissionsService);
   private refreshService = inject(DashboardRefreshService);
+  private confirmService = inject(ConfirmService);
 
   loading = signal(true);
   inventory = signal<EggInventory[]>([]);
@@ -618,16 +685,22 @@ export class EggsComponent implements OnInit {
   hCurrentPage = 1;
   hTotalPages = 1;
   hTotalItems = 0;
+  historySearchQuery = '';
+  historySearchSubject = new Subject<string>();
 
   // Damaged state
   damagedItems = signal<any[]>([]);
   dCurrentPage = 1;
   dTotalPages = 1;
   dTotalItems = 0;
+  damagedFilterType = 'todos';
+  damagedSearchQuery = '';
+  damagedSearchSubject = new Subject<string>();
 
   saving = signal(false);
   totalToday = signal(0);
   showDamagedModal = signal(false);
+  showEditModal = signal(false);
   selectedInventory = signal<EggInventory | null>(null);
 
   // Form matching RegisterEggProductionDto: { loteId, tipoHuevoId, cantidad }
@@ -643,6 +716,13 @@ export class EggsComponent implements OnInit {
     razon: ['', Validators.required],
   });
 
+  // Form matching UpdateEggInventoryDto
+  editForm = this.fb.group({
+    loteId: ['', Validators.required],
+    tipoHuevoId: ['', Validators.required],
+    cantidad: [null as number | null, [Validators.required, Validators.min(1)]],
+  });
+
   private typeColors = ['card_azul', 'card_morado', 'card_verde', 'card_verde_claro', 'card_amarillo', 'card_naranja', 'card_rojo'];
 
   ngOnInit(): void {
@@ -656,6 +736,16 @@ export class EggsComponent implements OnInit {
     this.searchSubject.pipe(debounceTime(300)).subscribe(() => {
       this.currentPage = 1;
       this.loadData();
+    });
+
+    this.damagedSearchSubject.pipe(debounceTime(300)).subscribe(() => {
+      this.dCurrentPage = 1;
+      this.loadDamagedData();
+    });
+
+    this.historySearchSubject.pipe(debounceTime(300)).subscribe(() => {
+      this.hCurrentPage = 1;
+      this.loadHistory();
     });
   }
 
@@ -682,6 +772,9 @@ export class EggsComponent implements OnInit {
   loadDamagedData(): void {
     this.loading.set(true);
     const params: any = { page: this.dCurrentPage, limit: this.limit };
+    if (this.damagedSearchQuery) params.search = this.damagedSearchQuery;
+    if (this.damagedFilterType && this.damagedFilterType !== 'todos') params.tipo = this.damagedFilterType;
+
     this.eggService.getDamagedPaginated(params).subscribe({
       next: (res: any) => {
         this.damagedItems.set(res.data);
@@ -707,6 +800,7 @@ export class EggsComponent implements OnInit {
   private loadHistory(): void {
     this.loading.set(true);
     const params: any = { page: this.hCurrentPage, limit: this.limit };
+    if (this.historySearchQuery) params.search = this.historySearchQuery;
     
     this.eggService.getProductionReport(this.historyPeriod, params).subscribe({
       next: (res) => {
@@ -724,6 +818,7 @@ export class EggsComponent implements OnInit {
     this.loading.set(true);
     const params: any = { page: this.currentPage, limit: this.limit };
     if (this.searchQuery) params.search = this.searchQuery;
+    if (this.filterType && this.filterType !== 'todos') params.tipo = this.filterType;
     
     this.eggService.getAllPaginated(params).subscribe({
       next: (res: any) => {
@@ -751,21 +846,47 @@ export class EggsComponent implements OnInit {
   }
 
   filterInventory(): void {
-    // Legacy local filter
-    if (this.filterType === 'todos') {
-      this.filtered.set(this.inventory());
-    } else {
-      this.filtered.set(this.inventory().filter((e) => e.tipo_huevo?.tipo === this.filterType));
-    }
+    this.currentPage = 1;
+    this.loadData();
   }
 
   onSearchInput(): void {
     this.searchSubject.next(this.searchQuery);
   }
 
+  onDamagedSearchInput(): void {
+    this.damagedSearchSubject.next(this.damagedSearchQuery);
+  }
+
+  onHistorySearchInput(): void {
+    this.historySearchSubject.next(this.historySearchQuery);
+  }
+
+  onDamagedFilterChange(): void {
+    this.dCurrentPage = 1;
+    this.loadDamagedData();
+  }
+
   onPageChange(page: number): void {
     this.currentPage = page;
     this.loadData();
+  }
+
+  getAverageWeight(item: EggInventory): string {
+    const type = item.tipo_huevo;
+    if (!type) return '—';
+    const min = type.peso_min;
+    const max = type.peso_max;
+    if (min !== undefined && max !== undefined && min !== null && max !== null) {
+      return `${((Number(min) + Number(max)) / 2).toFixed(1)} g`;
+    }
+    if (min !== undefined && min !== null) {
+      return `> ${min} g`;
+    }
+    if (max !== undefined && max !== null) {
+      return `< ${max} g`;
+    }
+    return '—';
   }
 
   saveProduction(): void {
@@ -795,6 +916,63 @@ export class EggsComponent implements OnInit {
     this.selectedInventory.set(item);
     this.damagedForm.reset();
     this.showDamagedModal.set(true);
+  }
+
+  openEditModal(item: EggInventory): void {
+    this.selectedInventory.set(item);
+    this.editForm.setValue({
+      loteId: item.lote?.id_lote || '',
+      tipoHuevoId: item.tipo_huevo?.id_tipo || '',
+      cantidad: item.cantidad
+    });
+    this.showEditModal.set(true);
+  }
+
+  saveEdit(): void {
+    const inv = this.selectedInventory();
+    if (!inv || this.editForm.invalid) { this.editForm.markAllAsTouched(); return; }
+    this.saving.set(true);
+    const data = {
+      loteId: this.editForm.value.loteId,
+      tipoHuevoId: this.editForm.value.tipoHuevoId,
+      cantidad: Number(this.editForm.value.cantidad),
+    };
+    this.eggService.update(inv.id_inventario_huevo, data).subscribe({
+      next: () => {
+        this.toast.success('Registro de inventario actualizado exitosamente');
+        this.showEditModal.set(false);
+        this.loadData();
+        this.refreshService.notifyDataChanged();
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al actualizar registro');
+      },
+      complete: () => this.saving.set(false),
+    });
+  }
+
+  async deleteInventory(item: EggInventory) {
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: `¿Estás seguro de que deseas eliminar este registro de inventario de huevos? Esta acción no se puede deshacer.`
+    });
+
+    if (!confirmed) return;
+
+    this.loading.set(true);
+    this.eggService.delete(item.id_inventario_huevo).subscribe({
+      next: () => {
+        this.toast.success('Registro de inventario eliminado exitosamente');
+        this.loadData();
+        this.refreshService.notifyDataChanged();
+      },
+      error: (err) => {
+        this.loading.set(false);
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al eliminar el registro');
+      }
+    });
   }
 
   saveDamaged(): void {

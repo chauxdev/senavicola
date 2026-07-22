@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @Controller('supplies')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -24,8 +25,9 @@ export class SuppliesController {
 
   @Post()
   @RequirePermission('INSUMOS_CREAR')
-  create(@Body() dto: CreateSupplyDto) {
-    return this.suppliesService.create(dto);
+  create(@Body() dto: CreateSupplyDto, @GetUser() user: any) {
+    const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
+    return this.suppliesService.create(dto, userDisplayName);
   }
 
   @Get()
@@ -42,8 +44,20 @@ export class SuppliesController {
 
   @Patch(':id')
   @RequirePermission('INSUMOS_EDITAR')
-  update(@Param('id') id: string, @Body() dto: UpdateSupplyDto) {
-    return this.suppliesService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateSupplyDto, @GetUser() user: any) {
+    const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
+    return this.suppliesService.update(id, dto, userDisplayName);
+  }
+
+  @Post(':id/reabastecer')
+  @RequirePermission('INSUMOS_EDITAR')
+  reabastecer(
+    @Param('id') id: string,
+    @Body() dto: { cantidad: number; motivo: string },
+    @GetUser() user: any
+  ) {
+    const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
+    return this.suppliesService.reabastecer(id, dto.cantidad, dto.motivo, userDisplayName);
   }
 
   @Delete(':id')

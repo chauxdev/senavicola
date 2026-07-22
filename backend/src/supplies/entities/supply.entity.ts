@@ -22,14 +22,14 @@ export class Supply {
   categoria!: SupplyCategory;
 
   @Column()
-  id_categoria!: number;
+  id_categoria!: string;
 
   @ManyToOne(() => MeasurementUnit, (unit) => unit.insumos)
   @JoinColumn({ name: 'id_unidad_medida' })
   unidadMedida!: MeasurementUnit;
 
   @Column()
-  id_unidad_medida!: number;
+  id_unidad_medida!: string;
 
   @ManyToOne(() => CallUser, (lu) => lu.insumos)
   @JoinColumn({ name: 'id_llamar_usuario' })
@@ -43,6 +43,15 @@ export class Supply {
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   cantidad!: number;
+
+  @Column({ name: 'stock_minimo', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  stockMinimo!: number;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  proveedor?: string;
+
+  @Column({ name: 'precio_unitario', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  precioUnitario!: number;
 
   @Column({ type: 'timestamp' })
   fecha!: Date;

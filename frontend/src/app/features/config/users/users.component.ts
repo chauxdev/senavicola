@@ -9,6 +9,7 @@ import { debounceTime } from 'rxjs/operators';
 import { UsersService, RolesService } from '../../../core/services/api.services';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../../core/services/toast.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
 import { User, Role } from '../../../core/models';
 
 @Component({
@@ -53,12 +54,12 @@ import { User, Role } from '../../../core/models';
           <div class="table-responsive">
             <table class="data-table">
               <thead>
-                <tr><th>ID</th><th>Nombre</th><th>Documento</th><th>Email</th><th>Roles</th><th>Estado</th><th>Acciones</th></tr>
+                <tr><th style="width: 60px;">#</th><th>Nombre</th><th>Documento</th><th>Email</th><th>Roles</th><th>Estado</th><th style="text-align: right; width: 180px;">Acciones</th></tr>
               </thead>
               <tbody>
-                @for (user of filtered(); track user.id_usuario) {
+                @for (user of filtered(); track user.id_usuario; let idx = $index) {
                   <tr>
-                    <td>#{{ user.id_usuario.substring(0, 8) }}…</td>
+                    <td><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                     <td><strong>{{ user.nombre }}</strong></td>
                     <td>{{ user.documento || user.numero_documento || '—' }}</td>
                     <td>{{ user.email || '—' }}</td>
@@ -75,7 +76,7 @@ import { User, Role } from '../../../core/models';
                         {{ user.estado !== false ? 'Activo' : 'Inactivo' }}
                       </span>
                     </td>
-                    <td class="actions-cell">
+                    <td class="actions-cell" style="justify-content: flex-end;">
                         <button class="btn-icon view" title="Ver Detalle" (click)="viewUser(user)"><i class="fas fa-eye"></i></button>
                           <button class="btn-icon edit" *appHasPermission="'USUARIOS_EDITAR'" title="Editar" (click)="editUser(user)"><i class="fas fa-edit"></i></button>
                           <button class="btn-icon assign" *appHasPermission="'ROLES_EDITAR'" title="Asignar Rol" (click)="openRoleModal(user)"><i class="fas fa-user-tag"></i></button>
@@ -175,7 +176,7 @@ import { User, Role } from '../../../core/models';
           <div class="modal-body">
             @if (viewingUser()) {
               <div class="profile-info" style="font-size: 1.4rem; line-height: 1.8;">
-                <p><strong>ID:</strong> {{ viewingUser()?.id_usuario }}</p>
+
                 <p><strong>Nombre:</strong> {{ viewingUser()?.nombre }}</p>
                 <p><strong>Documento:</strong> {{ viewingUser()?.documento || viewingUser()?.numero_documento }}</p>
                 <p><strong>Email:</strong> {{ viewingUser()?.email || 'No registrado' }}</p>
@@ -244,24 +245,7 @@ import { User, Role } from '../../../core/models';
       </div>
     }
 
-    @if (showConfirmModal()) {
-      <div class="modal-overlay" (click)="cancelConfirm()">
-        <div class="modal-card" (click)="$event.stopPropagation()">
-          <div class="modal-header">
-            <h3><i class="fas fa-exclamation-triangle" style="color: var(--danger, #e53935);"></i> Confirmar</h3>
-            <button class="btn-close" (click)="cancelConfirm()"><i class="fas fa-times"></i></button>
-          </div>
-          <div class="modal-body" style="text-align: center; padding: 2rem;">
-            <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--danger, #e53935); margin-bottom: 1.5rem; display: block;"></i>
-            <p style="font-size: 1.5rem;">{{ confirmMessage }}</p>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-outline" (click)="cancelConfirm()">Cancelar</button>
-            <button class="btn-danger" (click)="executeConfirm()"><i class="fas fa-check"></i> Confirmar</button>
-          </div>
-        </div>
-      </div>
-    }
+
   `,
   styles: [`
     .table-responsive { overflow-x: auto; }
@@ -281,6 +265,7 @@ export class UsersComponent implements OnInit {
   private usersService = inject(UsersService);
   private rolesService = inject(RolesService);
   private toast = inject(ToastService);
+  private confirmService = inject(ConfirmService);
 
   loading = signal(true);
   users = signal<User[]>([]);
@@ -304,9 +289,7 @@ export class UsersComponent implements OnInit {
   selectedRoleId = '';
   saving = signal(false);
 
-  showConfirmModal = signal(false);
-  confirmMessage = '';
-  confirmAction: (() => void) | null = null;
+
 
   userForm = this.fb.group({
     nombre: ['', Validators.required],
@@ -399,28 +382,21 @@ export class UsersComponent implements OnInit {
     });
   }
 
-  deleteUser(id: string): void {
-    this.requestConfirm('¿Eliminar este usuario?', () => {
-      this.usersService.delete(id).subscribe({
-        next: () => { this.toast.success('Usuario eliminado'); this.loadUsers(); },
-        error: () => this.toast.error('Error al eliminar'),
-      });
+  async deleteUser(id: string) {
+    const user = this.users().find(u => u.id_usuario === id);
+    const userName = user ? user.nombre : '';
+
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: `¿Estás seguro de que deseas eliminar al usuario '${userName}'? Esta acción no se puede deshacer.`
     });
-  }
 
-  requestConfirm(message: string, action: () => void): void {
-    this.confirmMessage = message;
-    this.confirmAction = action;
-    this.showConfirmModal.set(true);
-  }
+    if (!confirmed) return;
 
-  executeConfirm(): void {
-    if (this.confirmAction) this.confirmAction();
-    this.showConfirmModal.set(false);
-  }
-
-  cancelConfirm(): void {
-    this.showConfirmModal.set(false);
+    this.usersService.delete(id).subscribe({
+      next: () => { this.toast.success('Usuario eliminado'); this.loadUsers(); },
+      error: () => this.toast.error('Error al eliminar'),
+    });
   }
 
   assignRole(): void {

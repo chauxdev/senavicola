@@ -16,11 +16,26 @@ export class FlockAssignmentHistory {
   @Column()
   cantidad_asignada!: number;
 
-  @ManyToOne(() => Flock)
+  @ManyToOne(() => Flock, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'id_lote' })
-  lote!: Flock;
+  lote!: Flock | null;
 
-  @ManyToOne(() => Barn, barn => barn.asignacion_historial)
+  @ManyToOne(() => Barn, barn => barn.asignacion_historial, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'id_galpon' })
-  galpon!: Barn;
+  galpon!: Barn | null;
+
+  @Column({ name: 'fecha', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  fecha!: Date;
+
+  @Column({ name: 'descripcion', type: 'varchar', length: 255, default: '' })
+  descripcion!: string;
+
+  @Column({ name: 'usuario', type: 'varchar', length: 255, default: 'Sistema' })
+  usuario!: string;
+
+  @Column({ name: 'nombre_elemento', type: 'varchar', length: 255, default: '' })
+  nombre_elemento!: string;
+
+  @Column({ name: 'raza_nombre', type: 'varchar', length: 255, nullable: true })
+  raza_nombre!: string | null;
 }
