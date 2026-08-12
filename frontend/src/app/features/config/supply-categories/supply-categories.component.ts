@@ -15,6 +15,7 @@ import { SupplyCategoriesService } from '../../../core/services/api.services';
       icon="fa-tags"
       idField="id_categoria_insumo"
       [fields]="fields"
+      [disabledOnEditFields]="['nombre_categoria']"
     />
   `,
 })

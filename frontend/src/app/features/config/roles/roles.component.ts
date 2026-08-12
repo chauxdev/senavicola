@@ -4,14 +4,16 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { RolesService, PermissionsService } from '../../../core/services/api.services';
+import { PermissionsService as RbacPermissions } from '../../../core/services/permissions.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ConfirmService } from '../../../core/services/confirm.service';
+import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { Role, Permission } from '../../../core/models';
 
 @Component({
   selector: 'app-roles',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent],
   template: `
     <div class="roles-page">
       <div class="module-header">
@@ -21,7 +23,9 @@ import { Role, Permission } from '../../../core/models';
         </div>
         <div class="module-header-right">
           <a routerLink="/config" class="btn-outline"><i class="fas fa-arrow-left"></i> Volver</a>
-          <button class="btn-green" (click)="openModal()"><i class="fas fa-plus"></i> Nuevo Rol</button>
+          @if (rbac.canWrite()) {
+            <button class="btn-green" (click)="openModal()"><i class="fas fa-plus"></i> Nuevo Rol</button>
+          }
         </div>
       </div>
 
@@ -41,20 +45,28 @@ import { Role, Permission } from '../../../core/models';
             <table class="data-table">
               <thead><tr><th style="width: 60px;">#</th><th>Nombre</th><th>Descripción</th><th style="text-align: right; width: 120px;">Acciones</th></tr></thead>
               <tbody>
-                @for (role of filtered(); track role.id_rol; let idx = $index) {
+                @for (role of pagedRoles; track role.id_rol; let idx = $index) {
                   <tr>
-                    <td><strong>{{ idx + 1 }}</strong></td>
+                    <td><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                     <td><strong>{{ role.nombre }}</strong></td>
                     <td>{{ role.descripcion || '—' }}</td>
                     <td class="actions-cell" style="justify-content: flex-end;">
-                      <button class="btn-icon edit" (click)="editRole(role)"><i class="fas fa-edit"></i></button>
-                      <button class="btn-icon delete" (click)="deleteRole(role.id_rol)"><i class="fas fa-trash"></i></button>
+                      @if (rbac.canWrite()) {
+                        <button class="btn-icon edit" (click)="editRole(role)"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon delete" (click)="deleteRole(role.id_rol)"><i class="fas fa-trash"></i></button>
+                      }
                     </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+          <app-pagination 
+            [currentPage]="currentPage" 
+            [totalPages]="totalPages" 
+            [totalItems]="filtered().length"
+            (pageChange)="onPageChange($event)">
+          </app-pagination>
         }
       </div>
     </div>
@@ -70,7 +82,7 @@ import { Role, Permission } from '../../../core/models';
             <form [formGroup]="roleForm">
               <div class="form-group">
                 <label><i class="fas fa-user-tag"></i> Nombre del Rol</label>
-                <input type="text" formControlName="nombre" placeholder="Ej: Administrador" />
+                <input type="text" formControlName="nombre" placeholder="Ej: Administrador" [readonly]="editing() !== null" [class.input-disabled]="editing() !== null" />
               </div>
               <div class="form-group">
                 <label><i class="fas fa-info-circle"></i> Descripción</label>
@@ -120,7 +132,9 @@ import { Role, Permission } from '../../../core/models';
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="save()"><i class="fas fa-save"></i> {{ editing() ? 'Actualizar' : 'Crear' }}</button>
+            @if (rbac.canWrite()) {
+              <button class="btn-green" (click)="save()"><i class="fas fa-save"></i> {{ editing() ? 'Actualizar' : 'Crear' }}</button>
+            }
           </div>
         </div>
       </div>
@@ -155,6 +169,7 @@ export class RolesComponent implements OnInit {
   private fb = inject(FormBuilder);
   private rolesService = inject(RolesService);
   private permissionsService = inject(PermissionsService);
+  public rbac = inject(RbacPermissions);
   private toast = inject(ToastService);
   private confirmService = inject(ConfirmService);
 
@@ -170,6 +185,22 @@ export class RolesComponent implements OnInit {
   selectedRole = signal<Role | null>(null);
   
   saving = signal(false);
+
+  currentPage = 1;
+  limit = 5;
+
+  get pagedRoles(): Role[] {
+    const start = (this.currentPage - 1) * this.limit;
+    return this.filtered().slice(start, start + this.limit);
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.filtered().length / this.limit);
+  }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+  }
 
   // Permission UI state
   permissionFilter = '';
@@ -249,7 +280,12 @@ export class RolesComponent implements OnInit {
 
   private loadRoles(): void {
     this.rolesService.getAll().subscribe({
-      next: (data) => { this.roles.set(data); this.filtered.set(data); this.loading.set(false); },
+      next: (data) => { 
+        this.roles.set(data); 
+        this.filtered.set(data); 
+        this.currentPage = 1;
+        this.loading.set(false); 
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -257,6 +293,7 @@ export class RolesComponent implements OnInit {
   filter(): void {
     const q = this.searchQuery.toLowerCase();
     this.filtered.set(this.roles().filter((r) => `${r.nombre} ${r.descripcion}`.toLowerCase().includes(q)));
+    this.currentPage = 1;
   }
 
   openModal(): void {

@@ -11,6 +11,7 @@ import { Supply, SupplyCategory, MeasurementUnit, SupplyHistory } from '../../co
 import { ModuleHeaderComponent } from '../../shared/components/module-header/module-header.component';
 import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
 import { ConfirmService } from '../../core/services/confirm.service';
+import { PermissionsService } from '../../core/services/permissions.service';
 
 @Component({
   selector: 'app-supplies',
@@ -27,9 +28,11 @@ import { ConfirmService } from '../../core/services/confirm.service';
           <button class="btn-blue" (click)="openHistoryModal()">
             <i class="fas fa-history"></i> Ver Historial
           </button>
-          <button class="btn-green" (click)="openModal()">
-            <i class="fas fa-plus"></i> Registrar Insumo
-          </button>
+          @if (permissions.canWrite()) {
+            <button class="btn-green" (click)="openModal()">
+              <i class="fas fa-plus"></i> Registrar Insumo
+            </button>
+          }
         </div>
       </app-module-header>
 
@@ -104,7 +107,9 @@ import { ConfirmService } from '../../core/services/confirm.service';
                   <th>Fecha de Ingreso</th>
                   <th>Responsable</th>
                   <th>Estado</th>
-                  <th style="text-align: center; width: 140px;">Acciones</th>
+                  @if (permissions.canWrite()) {
+                    <th style="text-align: center; width: 140px;">Acciones</th>
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -113,7 +118,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                     <td><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                     <td><span class="badge_categoria">{{ supply.categoria?.nombre_categoria || '—' }}</span></td>
                     <td><strong>{{ supply.nombre }}</strong></td>
-                    <td><strong>{{ supply.cantidad }}</strong></td>
+                    <td><strong>{{ supply.cantidad | number:'1.0-0' }}</strong></td>
                     <td>{{ supply.unidadMedida?.abreviatura || supply.unidadMedida?.nombre || '—' }}</td>
                     <td>{{ supply.fecha ? (supply.fecha | date:'dd/MM/yyyy') : '—' }}</td>
                     <td>{{ supply.llamarUsuario?.usuario ? (supply.llamarUsuario.usuario.nombre + ' ' + (supply.llamarUsuario.usuario.apellido || '')) : 'Sistema' }}</td>
@@ -122,11 +127,13 @@ import { ConfirmService } from '../../core/services/confirm.service';
                         {{ Number(supply.cantidad) <= Number(supply.stockMinimo || 0) ? 'Bajo' : 'Normal' }}
                       </span>
                     </td>
-                    <td class="acciones_cell">
-                      <button class="btn-icon add-stock" title="Agregar stock" (click)="openReabastecerModal(supply)"><i class="fas fa-plus"></i></button>
-                      <button class="btn-icon edit" title="Editar Insumo" (click)="editSupply(supply)"><i class="fas fa-edit"></i></button>
-                      <button class="btn-icon delete" title="Eliminar Insumo" (click)="deleteSupply(supply.id_insumo)"><i class="fas fa-trash"></i></button>
-                    </td>
+                    @if (permissions.canWrite()) {
+                      <td class="acciones_cell">
+                        <button class="btn-icon add-stock" title="Agregar stock" (click)="openReabastecerModal(supply)"><i class="fas fa-plus"></i></button>
+                        <button class="btn-icon edit" title="Editar Insumo" (click)="editSupply(supply)"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon delete" title="Eliminar Insumo" (click)="deleteSupply(supply.id_insumo)"><i class="fas fa-trash"></i></button>
+                      </td>
+                    }
                   </tr>
                 }
               </tbody>
@@ -154,12 +161,12 @@ import { ConfirmService } from '../../core/services/confirm.service';
             <form [formGroup]="supplyForm" (ngSubmit)="save()">
               <div class="form-group">
                 <label><i class="fas fa-file-signature"></i> Nombre del Insumo <span class="requerido">*</span></label>
-                <input type="text" formControlName="nombre" placeholder="Ej: Maíz molido" />
+                <input type="text" formControlName="nombre" placeholder="Ej: Maíz molido" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
               </div>
               
               <div class="form-group">
                 <label><i class="fas fa-tags"></i> Tipo de Insumo <span class="requerido">*</span></label>
-                <select formControlName="id_categoria">
+                <select formControlName="id_categoria" [attr.disabled]="permissions.isVisitor() ? true : null">
                   <option value="">Seleccione una categoría</option>
                   @for (cat of categories(); track cat.id_categoria_insumo) {
                     <option [value]="cat.id_categoria_insumo">{{ cat.nombre_categoria }}</option>
@@ -171,11 +178,11 @@ import { ConfirmService } from '../../core/services/confirm.service';
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-balance-scale"></i> Cantidad <span class="requerido">*</span></label>
-                  <input type="number" formControlName="cantidad" placeholder="Ej: 50" step="0.01" min="0" />
+                  <input type="number" formControlName="cantidad" placeholder="Ej: 50" step="1" min="0" oninput="this.value = this.value.replace(/[^0-9]/g, '')" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-weight-hanging"></i> Unidad de Medida <span class="requerido">*</span></label>
-                  <select formControlName="id_unidad_medida">
+                  <select formControlName="id_unidad_medida" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="">Seleccione unidad</option>
                     @for (unit of units(); track unit.id_unidad_medida) {
                       <option [value]="unit.id_unidad_medida">{{ unit.nombre }} ({{ unit.abreviatura }})</option>
@@ -186,31 +193,33 @@ import { ConfirmService } from '../../core/services/confirm.service';
 
               <div class="form-group">
                 <label><i class="fas fa-exclamation-triangle"></i> Stock Mínimo <span class="requerido">*</span></label>
-                <input type="number" formControlName="stockMinimo" placeholder="Ej: 10" step="0.01" min="0" />
+                <input type="number" formControlName="stockMinimo" placeholder="Ej: 10" step="1" min="0" oninput="this.value = this.value.replace(/[^0-9]/g, '')" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
 
               <div class="form-group">
                 <label><i class="fas fa-calendar-alt"></i> Fecha de ingreso <span class="requerido">*</span></label>
-                <input type="date" formControlName="fecha" />
+                <input type="date" formControlName="fecha" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
 
               <div class="form-group">
                 <label><i class="fas fa-truck"></i> Proveedor (Opcional)</label>
-                <input type="text" formControlName="proveedor" placeholder="Ej: Proveedor S.A." />
+                <input type="text" formControlName="proveedor" placeholder="Ej: Proveedor S.A." [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
 
               <div class="form-group">
-                <label><i class="fas fa-dollar-sign"></i> Precio Unitario <span class="requerido">*</span></label>
-                <input type="number" formControlName="precioUnitario" placeholder="Ej: 1500" step="0.01" min="0" />
+                <label><i class="fas fa-dollar-sign"></i> Precio Unitario</label>
+                <input type="number" formControlName="precioUnitario" placeholder="Ej: 1500" step="0.01" min="0" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-outline" (click)="closeModal()">Cancelar</button>
-            <button type="submit" class="btn-green" (click)="save()" [disabled]="saving()">
-              @if (saving()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
-              {{ editing() ? 'Actualizar' : 'Guardar' }}
-            </button>
+            @if (permissions.canWrite()) {
+              <button type="submit" class="btn-green" (click)="save()" [disabled]="saving()">
+                @if (saving()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
+                {{ editing() ? 'Actualizar' : 'Guardar' }}
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -232,20 +241,22 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
               <div class="form-group">
                 <label><i class="fas fa-balance-scale"></i> Cantidad a agregar <span class="requerido">*</span></label>
-                <input type="number" formControlName="cantidad" placeholder="Ej: 20" step="0.01" min="0.01" />
+                <input type="number" formControlName="cantidad" placeholder="Ej: 20" step="1" min="0" oninput="this.value = this.value.replace(/[^0-9]/g, '')" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
                 <label><i class="fas fa-comment-alt"></i> Motivo <span class="requerido">*</span></label>
-                <textarea formControlName="motivo" placeholder="Ej: Compra mensual de insumos..." rows="3"></textarea>
+                <textarea formControlName="motivo" placeholder="Ej: Compra mensual de insumos..." rows="3" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()"></textarea>
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-outline" (click)="closeReabastecerModal()">Cancelar</button>
-            <button type="button" class="btn-green" (click)="submitReabastecer()" [disabled]="reabastecerForm.invalid || submittingReabastecer()">
-              @if (submittingReabastecer()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-plus"></i> }
-              Reabastecer
-            </button>
+            @if (permissions.canWrite()) {
+              <button type="button" class="btn-green" (click)="submitReabastecer()" [disabled]="reabastecerForm.invalid || submittingReabastecer()">
+                @if (submittingReabastecer()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-plus"></i> }
+                Reabastecer
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -308,7 +319,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                         </td>
                         <td>
                           <strong [class.text-green]="item.accion?.nombre === 'ENTRADA'" [class.text-red]="item.accion?.nombre === 'SALIDA'">
-                            {{ item.accion?.nombre === 'SALIDA' ? '-' : '+' }}{{ item.cantidad }}
+                            {{ item.accion?.nombre === 'SALIDA' ? '-' : '+' }}{{ item.cantidad | number:'1.0-0' }}
                           </strong>
                         </td>
                         <td>{{ item.usuario || 'Sistema' }}</td>
@@ -414,6 +425,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
   `],
 })
 export class SuppliesComponent implements OnInit {
+  public permissions = inject(PermissionsService);
   private fb = inject(FormBuilder);
   private suppliesService = inject(SuppliesService);
   private categoriesService = inject(SupplyCategoriesService);
@@ -439,7 +451,7 @@ export class SuppliesComponent implements OnInit {
   currentPage = 1;
   totalPages = 1;
   totalItems = 0;
-  limit = 10;
+  limit = 5;
 
   showModal = signal(false);
   editing = signal<Supply | null>(null);
@@ -454,13 +466,13 @@ export class SuppliesComponent implements OnInit {
   // Form matching CreateSupplyDto & UpdateSupplyDto
   supplyForm = this.fb.group({
     nombre: ['', Validators.required],
-    cantidad: [null as number | null, [Validators.required, Validators.min(0)]],
+    cantidad: [null as number | null, [Validators.required, Validators.min(0), Validators.pattern('^[0-9]+$')]],
     id_categoria: ['', Validators.required],
     id_unidad_medida: ['', Validators.required],
-    stockMinimo: [0, [Validators.required, Validators.min(0)]],
+    stockMinimo: [0, [Validators.required, Validators.min(0), Validators.pattern('^[0-9]+$')]],
     fecha: [new Date().toISOString().split('T')[0], Validators.required],
     proveedor: [''],
-    precioUnitario: [0, [Validators.required, Validators.min(0)]],
+    precioUnitario: [null as number | null, [Validators.min(0)]],
   });
 
   // Reabastecer Modal State
@@ -469,7 +481,7 @@ export class SuppliesComponent implements OnInit {
   submittingReabastecer = signal(false);
 
   reabastecerForm = this.fb.group({
-    cantidad: [null as number | null, [Validators.required, Validators.min(0.01)]],
+    cantidad: [null as number | null, [Validators.required, Validators.min(0), Validators.pattern('^[0-9]+$')]],
     motivo: ['', Validators.required],
   });
 
@@ -576,7 +588,7 @@ export class SuppliesComponent implements OnInit {
     this.supplyForm.reset({ 
       fecha: new Date().toISOString().split('T')[0],
       stockMinimo: 0,
-      precioUnitario: 0,
+      precioUnitario: null,
       proveedor: ''
     }); 
     this.showModal.set(true); 
@@ -596,7 +608,7 @@ export class SuppliesComponent implements OnInit {
       stockMinimo: supply.stockMinimo ?? 0,
       fecha: supply.fecha ? new Date(supply.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       proveedor: supply.proveedor || '',
-      precioUnitario: supply.precioUnitario ?? 0,
+      precioUnitario: supply.precioUnitario ?? null,
     });
     this.showModal.set(true);
   }
@@ -614,7 +626,7 @@ export class SuppliesComponent implements OnInit {
       stockMinimo: Number(formData.stockMinimo),
       fecha: formData.fecha,
       proveedor: formData.proveedor || null,
-      precioUnitario: Number(formData.precioUnitario),
+      precioUnitario: formData.precioUnitario !== null && formData.precioUnitario !== undefined && (formData.precioUnitario as any) !== '' ? Number(formData.precioUnitario) : 0,
       id_llamar_usuario: 1, // Default user
     };
 

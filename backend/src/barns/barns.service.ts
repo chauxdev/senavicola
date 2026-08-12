@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 
 import { Barn } from './entities/barn.entity';
 import { CreateBarnDto } from './dto/create-barn.dto';
 import { UpdateBarnDto } from './dto/update-barn.dto';
+import { FlockLocation } from '../flocks/entities/flock-location.entity';
 
 @Injectable()
 export class BarnsService {
@@ -13,6 +14,8 @@ export class BarnsService {
   constructor(
     @InjectRepository(Barn)
     private readonly barnRepository: Repository<Barn>,
+    @InjectRepository(FlockLocation)
+    private readonly locationRepository: Repository<FlockLocation>,
   ) {}
 
   async create(dto: CreateBarnDto) {
@@ -119,6 +122,21 @@ export class BarnsService {
 
     if (!barnResult) {
       throw new NotFoundException(`Galpón con id ${id_galpon} no encontrado`);
+    }
+
+    // Check for active flocks before deletion
+    const activeFlocks = await this.locationRepository
+      .createQueryBuilder('loc')
+      .innerJoin('loc.lote', 'lote')
+      .where('loc.galpon.id_galpon = :id_galpon', { id_galpon })
+      .andWhere('lote.estado = :estado', { estado: 'ACTIVO' })
+      .getCount();
+
+    if (activeFlocks > 0) {
+      throw new BadRequestException(
+        `El galpón no puede eliminarse porque tiene ${activeFlocks} lote(s) activo(s) asignado(s). ` +
+        `Finalice o reasigne los lotes antes de eliminar el galpón.`
+      );
     }
 
     await this.barnRepository.remove(barnResult);

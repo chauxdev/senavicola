@@ -180,7 +180,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
 
               <div style="display: flex; gap: 1.5rem;">
-                <button type="button" class="btn-green" (click)="cameraStatus.set(cameraStatus() === 'conectado' ? 'desconectado' : 'conectado')" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; justify-content: center; display: flex; align-items: center; gap: 0.5rem;">
+                <button type="button" class="btn-green" [disabled]="permissions.isVisitor()" (click)="cameraStatus.set(cameraStatus() === 'conectado' ? 'desconectado' : 'conectado')" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; justify-content: center; display: flex; align-items: center; gap: 0.5rem;">
                   <i class="fas" [class.fa-plug]="cameraStatus() !== 'conectado'" [class.fa-power-off]="cameraStatus() === 'conectado'"></i>
                   {{ cameraStatus() === 'conectado' ? 'Desconectar Cámara' : 'Conectar Cámara' }}
                 </button>
@@ -219,7 +219,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                   <input type="number" [value]="autoQuantity()" (input)="autoQuantity.set($any($event.target).value)" min="1" max="100" />
                 </div>
 
-                <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado'" (click)="simulateAutoClassification()" style="width: 100%; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2); justify-content: center;">
+                <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado' || permissions.isVisitor()" (click)="simulateAutoClassification()" style="width: 100%; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2); justify-content: center;">
                   <i class="fas fa-camera"></i> Capturar Peso / Clasificar
                 </button>
               </div>
@@ -325,7 +325,9 @@ import { ConfirmService } from '../../core/services/confirm.service';
                       <th>Fecha de Registro</th>
                       <th>Lote</th>
                       <th>Galpón</th>
-                      <th style="text-align: right; width: 150px;">Acciones</th>
+                      @if (permissions.canWrite()) {
+                        <th style="text-align: right; width: 150px;">Acciones</th>
+                      }
                     </tr>
                   </thead>
                   <tbody>
@@ -338,8 +340,8 @@ import { ConfirmService } from '../../core/services/confirm.service';
                         <td>{{ (item.produccion?.produccionFecha | date:'dd/MM/yyyy HH:mm') || '—' }}</td>
                         <td>{{ item.lote?.nombre || '—' }}</td>
                         <td>{{ item.lote?.ubicacion?.[0]?.galpon?.nombre || '—' }}</td>
-                        <td style="text-align: right; white-space: nowrap;">
-                          @if (permissions.canWrite()) {
+                        @if (permissions.canWrite()) {
+                          <td style="text-align: right; white-space: nowrap;">
                             <button class="btn-icon edit" title="Editar" (click)="openEditModal(item)" style="margin-right: 0.5rem;">
                               <i class="fas fa-edit"></i>
                             </button>
@@ -349,8 +351,8 @@ import { ConfirmService } from '../../core/services/confirm.service';
                             <button class="btn-icon delete" title="Eliminar" (click)="deleteInventory(item)">
                               <i class="fas fa-trash-alt"></i>
                             </button>
-                          }
-                        </td>
+                          </td>
+                        }
                       </tr>
                     }
                   </tbody>
@@ -416,14 +418,9 @@ import { ConfirmService } from '../../core/services/confirm.service';
           }
           @if (activeTab() === 'historial') {
             <div class="controles_tabla" style="gap: 1rem; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 2rem;">
-              <select class="select_filtro" [(ngModel)]="historyPeriod" (change)="onHistoryPeriodChange()">
-                <option value="semanal">Últimos 7 días</option>
-                <option value="mensual">Último mes</option>
-                <option value="trimestral">Últimos 3 meses</option>
-              </select>
               <div class="search-bar" style="display: flex; align-items: center; border: 2px solid #e0e0e0; border-radius: 8px; padding: 0 1rem; background: white;">
                 <i class="fas fa-search" style="color: #666; margin-right: 0.5rem;"></i>
-                <input type="text" placeholder="Buscar lote..." style="border: none; outline: none; padding: 1.2rem 0; font-size: 1.5rem; width: 250px;" [(ngModel)]="historySearchQuery" (input)="onHistorySearchInput()" />
+                <input type="text" placeholder="Buscar lote o tipo..." style="border: none; outline: none; padding: 1.2rem 0; font-size: 1.5rem; width: 250px;" [(ngModel)]="historySearchQuery" (input)="onHistorySearchInput()" />
               </div>
             </div>
             @if (loading()) {
@@ -431,23 +428,44 @@ import { ConfirmService } from '../../core/services/confirm.service';
             } @else if (historyItems().length === 0) {
               <div class="empty-state">
                 <i class="fas fa-history"></i>
-                <h3>No hay registros de producción</h3>
-                <p>No se encontraron datos en el período seleccionado.</p>
+                <h3>No hay registros de historial</h3>
+                <p>Los movimientos (nuevos registros, actualizaciones, huevos dañados) aparecerán aquí.</p>
               </div>
             } @else {
               <div class="tabla_contenedor">
                 <table class="tabla">
                   <thead>
-                    <tr><th style="width: 60px;">#</th><th>Fecha</th><th>Lote</th><th>Tipo Huevo</th><th>Cantidad</th></tr>
+                    <tr>
+                      <th style="width: 60px;">#</th>
+                      <th>Fecha</th>
+                      <th>Tipo Movimiento</th>
+                      <th>Lote</th>
+                      <th>Tipo Huevo</th>
+                      <th>Cant. Anterior</th>
+                      <th>Cantidad</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    @for (item of historyItems(); track item.id_produccion_huevo; let idx = $index) {
+                    @for (item of historyItems(); track item.id_historial_huevo; let idx = $index) {
                       <tr>
                         <td><strong>{{ (hCurrentPage - 1) * limit + idx + 1 }}</strong></td>
-                        <td>{{ item.produccionFecha | date:'dd/MM/yyyy HH:mm' }}</td>
-                        <td>{{ item.lote?.nombre || '—' }}</td>
-                        <td>{{ item.tipo_huevo?.tipo || '—' }}</td>
-                        <td><strong>{{ item.cantidady }}</strong></td>
+                        <td>{{ item.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                        <td>
+                          <span class="badge_estado"
+                            [style.background]="item.tipoMovimiento === 'Huevos Dañados' ? 'rgba(244,67,54,0.12)' : item.tipoMovimiento === 'Actualización' ? 'rgba(33,150,243,0.12)' : 'rgba(76,175,80,0.12)'"
+                            [style.color]="item.tipoMovimiento === 'Huevos Dañados' ? '#f44336' : item.tipoMovimiento === 'Actualización' ? '#1976d2' : '#2e7d32'">
+                            <i class="fas"
+                              [class.fa-exclamation-triangle]="item.tipoMovimiento === 'Huevos Dañados'"
+                              [class.fa-edit]="item.tipoMovimiento === 'Actualización'"
+                              [class.fa-plus-circle]="!item.tipoMovimiento || item.tipoMovimiento === 'Nuevo Registro'"
+                              style="margin-right: 0.4rem;"></i>
+                            {{ item.tipoMovimiento || 'Nuevo Registro' }}
+                          </span>
+                        </td>
+                        <td>{{ item.inventario?.lote?.nombre || '—' }}</td>
+                        <td>{{ item.inventario?.tipo_huevo?.tipo || '—' }}</td>
+                        <td>{{ item.cantidadAnterior !== null && item.cantidadAnterior !== undefined ? item.cantidadAnterior : '—' }}</td>
+                        <td><strong>{{ item.cantidad }}</strong></td>
                       </tr>
                     }
                   </tbody>
@@ -477,7 +495,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
             <form [formGroup]="editForm" (ngSubmit)="saveEdit()">
               <div class="form-group">
                 <label>Seleccionar Lote <span class="requerido">*</span></label>
-                <select formControlName="loteId">
+                <select formControlName="loteId" [attr.disabled]="permissions.isVisitor() ? true : null">
                   <option value="">Seleccionar</option>
                   @for (flock of flocks(); track flock.id_lote) {
                     <option [value]="flock.id_lote">{{ flock.nombre }}</option>
@@ -486,7 +504,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
               <div class="form-group">
                 <label>Seleccionar Tipo de Huevo <span class="requerido">*</span></label>
-                <select formControlName="tipoHuevoId">
+                <select formControlName="tipoHuevoId" [attr.disabled]="permissions.isVisitor() ? true : null">
                   <option value="">Seleccionar</option>
                   @for (type of eggTypes(); track type.id_tipo) {
                     <option [value]="type.id_tipo">{{ type.tipo }}</option>
@@ -495,13 +513,15 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
               <div class="form-group">
                 <label>Cantidad <span class="requerido">*</span></label>
-                <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" />
+                <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-outline" (click)="showEditModal.set(false)">Cancelar</button>
-            <button type="submit" class="btn-green" (click)="saveEdit()" [disabled]="saving()">Guardar</button>
+            @if (permissions.canWrite()) {
+              <button type="submit" class="btn-green" (click)="saveEdit()" [disabled]="saving()">Guardar</button>
+            }
           </div>
         </div>
       </div>
@@ -519,21 +539,23 @@ import { ConfirmService } from '../../core/services/confirm.service';
             <form [formGroup]="damagedForm" (ngSubmit)="saveDamaged()">
               <div class="form-group">
                 <label>Cantidad Disponible</label>
-                <input type="number" [value]="selectedInventory()?.cantidad || 0" readonly />
+                <input type="number" [value]="selectedInventory()?.cantidad || 0" readonly class="input-disabled" />
               </div>
               <div class="form-group">
                 <label>Cantidad Dañada <span class="requerido">*</span></label>
-                <input type="number" formControlName="cantidad" placeholder="Ej: 5" min="1" />
+                <input type="number" formControlName="cantidad" placeholder="Ej: 5" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
                 <label>Razón <span class="requerido">*</span></label>
-                <input type="text" formControlName="razon" placeholder="Ej: Rotos en transporte" />
+                <input type="text" formControlName="razon" placeholder="Ej: Rotos en transporte" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-outline" (click)="showDamagedModal.set(false)">Cancelar</button>
-            <button type="submit" class="btn-green" (click)="saveDamaged()" [disabled]="saving()">Actualizar</button>
+            @if (permissions.canWrite()) {
+              <button type="submit" class="btn-green" (click)="saveDamaged()" [disabled]="saving()">Actualizar</button>
+            }
           </div>
         </div>
       </div>
@@ -677,7 +699,7 @@ export class EggsComponent implements OnInit {
   currentPage = 1;
   totalPages = 1;
   totalItems = 0;
-  limit = 10;
+  limit = 5;
 
   // History state
   historyPeriod = 'semanal' as 'semanal' | 'mensual' | 'trimestral';
@@ -802,7 +824,7 @@ export class EggsComponent implements OnInit {
     const params: any = { page: this.hCurrentPage, limit: this.limit };
     if (this.historySearchQuery) params.search = this.historySearchQuery;
     
-    this.eggService.getProductionReport(this.historyPeriod, params).subscribe({
+    this.eggService.getEggHistory(params).subscribe({
       next: (res) => {
         this.historyItems.set(res.data);
         this.hTotalItems = res.total;

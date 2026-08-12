@@ -45,6 +45,34 @@ export class FlocksService {
     private readonly barnRepo: Repository<Barn>,
   ) {}
 
+  /** Returns the total number of birds currently assigned to a barn (only ACTIVE flocks). */
+  private async getBarnOccupancy(galponId: string, excludeFlockId?: string): Promise<number> {
+    const qb = this.locationRepo.createQueryBuilder('loc')
+      .innerJoin('loc.lote', 'lote')
+      .innerJoin('loc.galpon', 'galpon')
+      .where('galpon.id_galpon = :galponId', { galponId })
+      .andWhere('lote.estado = :estado', { estado: 'ACTIVO' });
+
+    // When editing a flock we exclude it from the count so we don't double-count it
+    if (excludeFlockId) {
+      qb.andWhere('lote.id_lote != :excludeFlockId', { excludeFlockId });
+    }
+
+    // Join ubicacion_lote only once per flock (take the latest location per lote)
+    const rows = await qb.select(['lote.id_lote AS id_lote', 'lote.total_aves AS total_aves']).getRawMany();
+
+    // Deduplicate by flock id (a flock may have multiple location rows)
+    const seen = new Set<string>();
+    let total = 0;
+    for (const row of rows) {
+      if (!seen.has(row.id_lote)) {
+        seen.add(row.id_lote);
+        total += Number(row.total_aves) || 0;
+      }
+    }
+    return total;
+  }
+
   async create(dto: CreateFlockDto, userDisplayName?: string) {
     const existing = await this.flockRepo.findOne({
       where: { nombre: ILike(dto.nombre) },
@@ -58,6 +86,21 @@ export class FlocksService {
 
     const galpon = await this.barnRepo.findOneBy({ id_galpon: dto.galponId });
     if (!galpon) throw new NotFoundException('Galpón no encontrado');
+
+    // ── Barn capacity validation ──────────────────────────────────────────────
+    const currentOccupancy = await this.getBarnOccupancy(dto.galponId);
+    const projectedTotal = currentOccupancy + dto.total_aves;
+    if (projectedTotal > galpon.capacidad_max_aves) {
+      const available = galpon.capacidad_max_aves - currentOccupancy;
+      throw new BadRequestException(
+        `El galpón "${galpon.nombre}" no tiene suficiente capacidad. ` +
+        `Capacidad máxima: ${galpon.capacidad_max_aves} aves. ` +
+        `Ocupación actual: ${currentOccupancy} aves. ` +
+        `Disponible: ${available > 0 ? available : 0} aves. ` +
+        `Solicitado: ${dto.total_aves} aves.`
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const flock = this.flockRepo.create({
       nombre: dto.nombre,
@@ -177,6 +220,29 @@ export class FlocksService {
         throw new ConflictException(`Ya existe un lote con el nombre "${dto.nombre}"`);
       }
     }
+
+    // ── Barn capacity validation on edit (only when total_aves changes) ───────
+    if (dto.total_aves !== undefined && dto.total_aves !== flock.total_aves) {
+      const currentGalponId = flock.ubicacion?.[0]?.galpon?.id_galpon;
+      if (currentGalponId) {
+        const galpon = await this.barnRepo.findOneBy({ id_galpon: currentGalponId });
+        if (galpon) {
+          const occupancyWithoutThisFlock = await this.getBarnOccupancy(currentGalponId, id);
+          const projectedTotal = occupancyWithoutThisFlock + dto.total_aves;
+          if (projectedTotal > galpon.capacidad_max_aves) {
+            const available = galpon.capacidad_max_aves - occupancyWithoutThisFlock;
+            throw new BadRequestException(
+              `El galpón "${galpon.nombre}" no tiene suficiente capacidad. ` +
+              `Capacidad máxima: ${galpon.capacidad_max_aves} aves. ` +
+              `Ocupado por otros lotes: ${occupancyWithoutThisFlock} aves. ` +
+              `Disponible: ${available > 0 ? available : 0} aves. ` +
+              `Solicitado: ${dto.total_aves} aves.`
+            );
+          }
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Insert history record BEFORE updating the flock
     const currentGalpon = flock.ubicacion?.[0]?.galpon || null;

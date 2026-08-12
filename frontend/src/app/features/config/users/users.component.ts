@@ -10,6 +10,7 @@ import { UsersService, RolesService } from '../../../core/services/api.services'
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../../core/services/toast.service';
 import { ConfirmService } from '../../../core/services/confirm.service';
+import { PermissionsService } from '../../../core/services/permissions.service';
 import { User, Role } from '../../../core/models';
 
 @Component({
@@ -109,31 +110,31 @@ import { User, Role } from '../../../core/models';
             <form [formGroup]="userForm">
               <div class="form-group">
                 <label><i class="fas fa-user"></i> Nombre</label>
-                <input type="text" formControlName="nombre" placeholder="Nombre" />
+                <input type="text" formControlName="nombre" placeholder="Nombre" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
                 <label><i class="fas fa-user"></i> Apellido</label>
-                <input type="text" formControlName="apellido" placeholder="Apellido" />
+                <input type="text" formControlName="apellido" placeholder="Apellido" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-id-card"></i> Documento</label>
-                  <input type="text" formControlName="documento" placeholder="Número de documento" />
+                  <input type="text" formControlName="documento" placeholder="Número de documento" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-envelope"></i> Email</label>
-                  <input type="email" formControlName="email" placeholder="correo@ejemplo.com" />
+                  <input type="email" formControlName="email" placeholder="correo@ejemplo.com" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
                 </div>
               </div>
               @if (!editing()) {
                 <div class="form-row">
                   <div class="form-group">
                     <label><i class="fas fa-lock"></i> Contraseña</label>
-                    <input type="password" formControlName="password" placeholder="Contraseña" />
+                    <input type="password" formControlName="password" placeholder="Contraseña" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                   </div>
                   <div class="form-group">
                     <label><i class="fas fa-user-tag"></i> Rol Inicial</label>
-                    <select formControlName="rolId">
+                    <select formControlName="rolId" [attr.disabled]="permissions.isVisitor() ? true : null">
                       <option value="">Seleccionar rol</option>
                       @for (role of roles(); track role.id_rol) {
                         <option [value]="role.id_rol">{{ role.nombre }}</option>
@@ -146,7 +147,7 @@ import { User, Role } from '../../../core/models';
                 <div class="form-group switch-group">
                   <label><i class="fas fa-toggle-on"></i> Estado</label>
                   <div class="switch-field">
-                    <input type="checkbox" id="activoSwitch" formControlName="activo" />
+                    <input type="checkbox" id="activoSwitch" formControlName="activo" [attr.disabled]="permissions.isVisitor() ? true : null" />
                     <label for="activoSwitch">{{ userForm.controls.activo.value ? 'Activo' : 'Inactivo' }}</label>
                   </div>
                 </div>
@@ -155,11 +156,13 @@ import { User, Role } from '../../../core/models';
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="save()" [disabled]="saving()">
-              @if (saving()) { <span class="spinner_sm"></span> }
-              @else { <i class="fas fa-save"></i> }
-              {{ editing() ? 'Actualizar' : 'Crear Usuario' }}
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="save()" [disabled]="saving()">
+                @if (saving()) { <span class="spinner_sm"></span> }
+                @else { <i class="fas fa-save"></i> }
+                {{ editing() ? 'Actualizar' : 'Crear Usuario' }}
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -217,7 +220,9 @@ import { User, Role } from '../../../core/models';
                 @for (role of (selectedUser()?.roles || []); track role.id_rol) {
                   <span class="badge active">
                     {{ role.nombre }}
-                    <button class="chip-remove" (click)="removeRole(role.id_rol)"><i class="fas fa-times"></i></button>
+                    @if (permissions.canWrite()) {
+                      <button class="chip-remove" (click)="removeRole(role.id_rol)"><i class="fas fa-times"></i></button>
+                    }
                   </span>
                 }
                 @if (!(selectedUser()?.roles?.length)) {
@@ -227,7 +232,7 @@ import { User, Role } from '../../../core/models';
             </div>
             <div class="form-group">
               <label><i class="fas fa-plus-circle"></i> Asignar Nuevo Rol</label>
-              <select [(ngModel)]="selectedRoleId">
+              <select [(ngModel)]="selectedRoleId" [attr.disabled]="permissions.isVisitor() ? true : null">
                 <option value="">Seleccionar rol</option>
                 @for (role of roles(); track role.id_rol) {
                   <option [value]="role.id_rol">{{ role.nombre }}</option>
@@ -237,9 +242,11 @@ import { User, Role } from '../../../core/models';
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cerrar</button>
-            <button class="btn-green" (click)="assignRole()" [disabled]="!selectedRoleId">
-              <i class="fas fa-plus"></i> Asignar Rol
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="assignRole()" [disabled]="!selectedRoleId">
+                <i class="fas fa-plus"></i> Asignar Rol
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -266,6 +273,7 @@ export class UsersComponent implements OnInit {
   private rolesService = inject(RolesService);
   private toast = inject(ToastService);
   private confirmService = inject(ConfirmService);
+  public permissions = inject(PermissionsService);
 
   loading = signal(true);
   users = signal<User[]>([]);
@@ -278,7 +286,7 @@ export class UsersComponent implements OnInit {
   currentPage = 1;
   totalPages = 1;
   totalItems = 0;
-  limit = 10;
+  limit = 5;
 
   showModal = signal(false);
   showRoleModal = signal(false);

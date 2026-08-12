@@ -707,3 +707,10 @@ body {
 }
 
 .p-paginator { font-size: 1.3rem !important; }
+
+/* ===== INPUT DISABLED STYLE ===== */
+.input-disabled {
+  background: var(--gray-light) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}

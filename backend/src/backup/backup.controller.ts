@@ -13,13 +13,13 @@ export class BackupController {
   constructor(private readonly backupService: BackupService) {}
 
   @Get('backup')
-  @RequirePermission('CONFIGURACION_VER')
+  @RequirePermission('BACKUP_GESTIONAR')
   async createBackup() {
     return this.backupService.createBackup();
   }
 
   @Get('backup/download')
-  @RequirePermission('CONFIGURACION_VER')
+  @RequirePermission('BACKUP_GESTIONAR')
   async downloadBackup(@Res() res: any) {
     const result = await this.backupService.createBackup();
     const filePath = result.data.path;
@@ -38,7 +38,7 @@ export class BackupController {
   }
 
   @Post('restore')
-  @RequirePermission('CONFIGURACION_VER')
+  @RequirePermission('BACKUP_GESTIONAR')
   async restoreBackup(@Body() body: { filename: string }) {
     return this.backupService.restoreBackup(body.filename);
   }

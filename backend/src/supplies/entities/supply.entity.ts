@@ -5,6 +5,7 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { SupplyCategory } from '../../supply-categories/entities/supply-category.entity';
 import { MeasurementUnit } from '../../measurement-units/entities/measurement-unit.entity';
@@ -41,10 +42,10 @@ export class Supply {
   @Column({ type: 'varchar', length: 255 })
   nombre!: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'integer' })
   cantidad!: number;
 
-  @Column({ name: 'stock_minimo', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({ name: 'stock_minimo', type: 'integer', default: 0 })
   stockMinimo!: number;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -55,6 +56,9 @@ export class Supply {
 
   @Column({ type: 'timestamp' })
   fecha!: Date;
+
+  @DeleteDateColumn({ name: 'fecha_eliminacion', type: 'timestamp', nullable: true })
+  fecha_eliminacion?: Date;
 
   @OneToMany(() => SupplyHistory, (hist) => hist.insumo)
   historial!: SupplyHistory[];

@@ -39,6 +39,12 @@ export class EggInventoryController {
     return this.service.findAll(paginationDto);
   }
 
+  @Get('historial')
+  @RequirePermission('HUEVOS_VER')
+  getHistory(@Query() paginationDto: PaginationDto) {
+    return this.service.getHistory(paginationDto);
+  }
+
   @Get('reporte/:periodo')
   @RequirePermission('HUEVOS_VER')
   getProductionReport(

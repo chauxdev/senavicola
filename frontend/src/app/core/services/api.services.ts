@@ -207,6 +207,12 @@ export class EggInventoryService extends BaseApiService<EggInventory> {
       map(response => extractData<import('../models').PaginatedResponse<any>>(response))
     );
   }
+
+  getEggHistory(params?: Record<string, any>): Observable<import('../models').PaginatedResponse<any>> {
+    return this.http.get<unknown>(`${this.url}/historial`, { params }).pipe(
+      map(response => extractData<import('../models').PaginatedResponse<any>>(response))
+    );
+  }
 }
 
 // ===== SUPPLY CATEGORIES =====

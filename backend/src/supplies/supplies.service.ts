@@ -27,6 +27,18 @@ export class SuppliesService {
     private readonly actionRepository: Repository<SupplyAction>,
   ) {}
 
+  private parseIntegers(supply: Supply): Supply {
+    if (supply) {
+      if (supply.cantidad !== undefined && supply.cantidad !== null) {
+        supply.cantidad = Math.floor(Number(supply.cantidad));
+      }
+      if (supply.stockMinimo !== undefined && supply.stockMinimo !== null) {
+        supply.stockMinimo = Math.floor(Number(supply.stockMinimo));
+      }
+    }
+    return supply;
+  }
+
   async create(dto: CreateSupplyDto, userDisplayName: string = 'Sistema'): Promise<Supply> {
     const existing = await this.insumoRepository.findOne({
       where: {
@@ -62,7 +74,7 @@ export class SuppliesService {
       );
     }
 
-    return saved;
+    return this.parseIntegers(saved);
   }
 
   async findAll(paginationDto: PaginationDto): Promise<StandardPaginationResponse<Supply>> {
@@ -77,7 +89,9 @@ export class SuppliesService {
       qb.andWhere('(insumo.nombre ILIKE :search OR categoria.nombre_categoria ILIKE :search)', { search: s });
     }
 
-    return paginateAndRespond(qb, paginationDto);
+    const response = await paginateAndRespond(qb, paginationDto);
+    response.data = response.data.map((item) => this.parseIntegers(item));
+    return response;
   }
 
   async findOne(id: string): Promise<Supply> {
@@ -88,7 +102,7 @@ export class SuppliesService {
     if (!insumo) {
       throw new NotFoundException(`Insumo con ID ${id} no encontrado`);
     }
-    return insumo;
+    return this.parseIntegers(insumo);
   }
 
   async update(id: string, dto: UpdateSupplyDto, userDisplayName: string = 'Sistema'): Promise<Supply> {
@@ -139,7 +153,7 @@ export class SuppliesService {
       }
     }
 
-    return saved;
+    return this.parseIntegers(saved);
   }
 
   async ajustarCantidad(id: string, cantidad: string, userDisplayName: string = 'Sistema'): Promise<Supply> {
@@ -173,7 +187,7 @@ export class SuppliesService {
       }
     }
 
-    return saved;
+    return this.parseIntegers(saved);
   }
 
   async reabastecer(id: string, cantidad: number, motivo: string, userDisplayName: string = 'Sistema'): Promise<Supply> {
@@ -198,12 +212,12 @@ export class SuppliesService {
         })
       );
     }
-    return saved;
+    return this.parseIntegers(saved);
   }
 
   async remove(id: string): Promise<{ message: string }> {
     const insumo = await this.findOne(id);
-    await this.insumoRepository.remove(insumo);
+    await this.insumoRepository.softRemove(insumo);
     return { message: `Insumo con ID ${id} eliminado correctamente` };
   }
 }

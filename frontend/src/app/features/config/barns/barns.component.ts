@@ -15,6 +15,7 @@ import { BarnsService } from '../../../core/services/api.services';
       icon="fa-warehouse"
       idField="id_galpon"
       [fields]="fields"
+      [disabledOnEditFields]="['codigo']"
     />
   `,
 })

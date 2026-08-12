@@ -13,18 +13,26 @@ export class EggHistory {
   @PrimaryGeneratedColumn('uuid')
   id_historial_huevo!: string;
 
-  @ManyToOne(() => EggInventory, (inventory) => inventory.history)
-  inventario!: EggInventory;
+  @ManyToOne(() => EggInventory, (inventory) => inventory.history, { nullable: true })
+  inventario?: EggInventory;
 
-  @ManyToOne(() => EggProduction)
-  produccion!: EggProduction;
+  @ManyToOne(() => EggProduction, { nullable: true })
+  produccion?: EggProduction;
 
-  @Column()
-  usuarioId!: string;
+  @Column({ nullable: true })
+  usuarioId?: string;
 
   @Column()
   cantidad!: number;
 
+  /** 'Nuevo Registro' | 'Actualización' | 'Huevos Dañados' */
+  @Column({ name: 'tipo_movimiento', nullable: true, default: 'Nuevo Registro' })
+  tipoMovimiento?: string;
+
+  @Column({ name: 'cantidad_anterior', nullable: true })
+  cantidadAnterior?: number;
+
   @CreateDateColumn()
   fecha!: Date;
 }
+

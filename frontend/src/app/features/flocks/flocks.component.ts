@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -190,9 +191,9 @@ import { ConfirmService } from '../../core/services/confirm.service';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (barn of filteredBarns(); track barn.id_galpon; let idx = $index) {
+                  @for (barn of pagedBarns; track barn.id_galpon; let idx = $index) {
                     <tr>
-                      <td><strong>{{ idx + 1 }}</strong></td>
+                      <td><strong>{{ (barnsPage - 1) * barnsLimit + idx + 1 }}</strong></td>
                       <td>{{ barn.codigo }}</td>
                       <td><strong>{{ barn.nombre }}</strong></td>
                       <td>{{ barn.capacidad_max_aves || '—' }}</td>
@@ -209,6 +210,12 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 </tbody>
               </table>
             </div>
+            <app-pagination
+              [currentPage]="barnsPage"
+              [totalPages]="barnsTotalPages"
+              [totalItems]="filteredBarns().length"
+              (pageChange)="onBarnsPageChange($event)">
+            </app-pagination>
           }
         </div>
       }
@@ -252,7 +259,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 <tbody>
                   @for (item of historyItems(); track item.id_historial_asignacion_lote; let idx = $index) {
                     <tr>
-                      <td><strong>{{ (historyPage - 1) * 10 + idx + 1 }}</strong></td>
+                      <td><strong>{{ (historyPage - 1) * 5 + idx + 1 }}</strong></td>
                       <td>{{ item.fecha | date:'dd/MM/yyyy' }}</td>
                       <td>{{ item.fecha | date:'HH:mm' }}</td>
                       <td>{{ item.descripcion || '—' }}</td>
@@ -290,17 +297,17 @@ import { ConfirmService } from '../../core/services/confirm.service';
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-tag"></i> Nombre del Lote</label>
-                  <input type="text" formControlName="nombre" placeholder="Ej: Lote A-2026" />
+                  <input type="text" formControlName="nombre" placeholder="Ej: Lote A-2026" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-dove"></i> Total de Aves</label>
-                  <input type="number" formControlName="total_aves" placeholder="Ej: 500" min="1" />
+                  <input type="number" formControlName="total_aves" placeholder="Ej: 500" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-dna"></i> Raza</label>
-                  <select formControlName="razaId">
+                  <select formControlName="razaId" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="">Seleccionar raza</option>
                     @for (breed of breeds(); track breed.id_raza) {
                       <option [value]="breed.id_raza">{{ breed.nombre }}</option>
@@ -309,32 +316,41 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-warehouse"></i> Galpón</label>
-                  <select formControlName="galponId">
+                  <select formControlName="galponId" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="">Seleccionar galpón</option>
                     @for (barn of barns(); track barn.id_galpon) {
                       <option [value]="barn.id_galpon">{{ barn.nombre }} (Cap: {{ barn.capacidad_max_aves }})</option>
                     }
                   </select>
+                  <!-- Capacity indicator -->
+                  @if (barnCapacityInfo(); as info) {
+                    <div class="capacity-indicator" [class.cap-ok]="info.status === 'ok'" [class.cap-warn]="info.status === 'warn'" [class.cap-full]="info.status === 'full'">
+                      <i class="fas" [class.fa-check-circle]="info.status === 'ok'" [class.fa-exclamation-triangle]="info.status === 'warn'" [class.fa-times-circle]="info.status === 'full'"></i>
+                      <span>{{ info.message }}</span>
+                    </div>
+                  }
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-utensils"></i> Ración de Alimento</label>
-                  <input type="text" formControlName="racion_alimento" placeholder="Ej: 120g/día" />
+                  <input type="text" formControlName="racion_alimento" placeholder="Ej: 120g/día" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
               <div class="form-group">
                 <label><i class="fas fa-comment"></i> Observación</label>
-                <textarea formControlName="observacion" placeholder="Observaciones..." rows="2"></textarea>
+                <textarea formControlName="observacion" placeholder="Observaciones..." rows="2" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()"></textarea>
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="saveFlock()" [disabled]="savingFlock()">
-              @if (savingFlock()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
-              Guardar Lote
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="saveFlock()" [disabled]="savingFlock()">
+                @if (savingFlock()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
+                Guardar Lote
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -353,31 +369,33 @@ import { ConfirmService } from '../../core/services/confirm.service';
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-barcode"></i> Código</label>
-                  <input type="text" formControlName="codigo" placeholder="Ej: G-001" />
+                  <input type="text" formControlName="codigo" placeholder="Ej: G-001" [readonly]="permissions.isVisitor() || editingBarn() !== null" [class.input-disabled]="permissions.isVisitor() || editingBarn() !== null" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-warehouse"></i> Nombre del Galpón</label>
-                  <input type="text" formControlName="nombre" placeholder="Ej: Galpón 1" />
+                  <input type="text" formControlName="nombre" placeholder="Ej: Galpón 1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-users"></i> Capacidad Máx. Aves</label>
-                  <input type="number" formControlName="capacidad_max_aves" placeholder="Ej: 500" min="1" />
+                  <input type="number" formControlName="capacidad_max_aves" placeholder="Ej: 500" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-ruler-combined"></i> Área (m²)</label>
-                  <input type="number" formControlName="area" placeholder="Ej: 120.5" min="0.1" step="0.1" />
+                  <input type="number" formControlName="area" placeholder="Ej: 120.5" min="0.1" step="0.1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="saveBarn()" [disabled]="savingBarn()">
-              @if (savingBarn()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
-              {{ editingBarn() ? 'Actualizar' : 'Guardar' }}
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="saveBarn()" [disabled]="savingBarn()">
+                @if (savingBarn()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
+                {{ editingBarn() ? 'Actualizar' : 'Guardar' }}
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -396,17 +414,17 @@ import { ConfirmService } from '../../core/services/confirm.service';
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-tag"></i> Nombre del Lote</label>
-                  <input type="text" formControlName="nombre" placeholder="Nombre del lote" />
+                  <input type="text" formControlName="nombre" placeholder="Nombre del lote" [readonly]="true" [class.input-disabled]="true" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-dove"></i> Total de Aves</label>
-                  <input type="number" formControlName="total_aves" placeholder="Total aves" min="1" />
+                  <input type="number" formControlName="total_aves" placeholder="Total aves" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-dna"></i> Raza</label>
-                  <select formControlName="razaId">
+                  <select formControlName="razaId" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="">Seleccionar raza</option>
                     @for (breed of breeds(); track breed.id_raza) {
                       <option [value]="breed.id_raza">{{ breed.nombre }}</option>
@@ -415,7 +433,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-warehouse"></i> Galpón</label>
-                  <select formControlName="galponId">
+                  <select formControlName="galponId" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="">Seleccionar galpón</option>
                     @for (barn of barns(); track barn.id_galpon) {
                       <option [value]="barn.id_galpon">{{ barn.nombre }}</option>
@@ -426,11 +444,11 @@ import { ConfirmService } from '../../core/services/confirm.service';
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-utensils"></i> Ración de Alimento</label>
-                  <input type="text" formControlName="racion_alimento" placeholder="Ej: 120g/día" />
+                  <input type="text" formControlName="racion_alimento" placeholder="Ej: 120g/día" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-toggle-on"></i> Estado</label>
-                  <select formControlName="estado">
+                  <select formControlName="estado" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="ACTIVO">ACTIVO</option>
                     <option value="FINALIZADO">FINALIZADO</option>
                   </select>
@@ -438,16 +456,18 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
               <div class="form-group">
                 <label><i class="fas fa-comment"></i> Observación</label>
-                <textarea formControlName="observacion" placeholder="Observaciones..." rows="2"></textarea>
+                <textarea formControlName="observacion" placeholder="Observaciones..." rows="2" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()"></textarea>
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="saveEditFlock()" [disabled]="savingEditFlock()">
-              @if (savingEditFlock()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
-              Guardar Cambios
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="saveEditFlock()" [disabled]="savingEditFlock()">
+                @if (savingEditFlock()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
+                Guardar Cambios
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -490,9 +510,9 @@ import { ConfirmService } from '../../core/services/confirm.service';
                       <th>#</th><th>Fecha</th><th>Hora</th><th>Acción</th><th>Aves</th><th>Galpón</th><th>Usuario</th>
                     </tr></thead>
                     <tbody>
-                      @for (h of detailsHistory(); track h.id_historial_asignacion_lote; let hi = $index) {
+                      @for (h of pagedDetailsHistory; track h.id_historial_asignacion_lote; let hi = $index) {
                         <tr>
-                          <td>{{ hi + 1 }}</td>
+                          <td>{{ (detailsHistoryPage - 1) * detailsHistoryLimit + hi + 1 }}</td>
                           <td>{{ h.fecha | date:'dd/MM/yyyy' }}</td>
                           <td>{{ h.fecha | date:'HH:mm' }}</td>
                           <td>{{ h.descripcion || '—' }}</td>
@@ -504,6 +524,12 @@ import { ConfirmService } from '../../core/services/confirm.service';
                     </tbody>
                   </table>
                 </div>
+                <app-pagination
+                  [currentPage]="detailsHistoryPage"
+                  [totalPages]="detailsHistoryTotalPages"
+                  [totalItems]="detailsHistory().length"
+                  (pageChange)="onDetailsHistoryPageChange($event)">
+                </app-pagination>
               }
             </div>
           </div>
@@ -526,30 +552,32 @@ import { ConfirmService } from '../../core/services/confirm.service';
             <form [formGroup]="deadBirdsForm">
               <div class="form-group">
                 <label><i class="fas fa-layer-group"></i> Lote</label>
-                <input type="text" [value]="selectedFlock()?.nombre || 'Lote ' + selectedFlock()?.id_lote?.substring(0, 8)" disabled />
+                <input type="text" [value]="selectedFlock()?.nombre || 'Lote ' + selectedFlock()?.id_lote?.substring(0, 8)" disabled class="input-disabled" />
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label><i class="fas fa-skull-crossbones"></i> Cantidad</label>
-                  <input type="number" formControlName="cantidad" placeholder="Cantidad de aves muertas" min="1" />
+                  <input type="number" formControlName="cantidad" placeholder="Cantidad de aves muertas" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
                   <label><i class="fas fa-calendar"></i> Fecha</label>
-                  <input type="date" formControlName="fecha" />
+                  <input type="date" formControlName="fecha" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
               <div class="form-group">
                 <label><i class="fas fa-comment"></i> Motivo</label>
-                <textarea formControlName="motivo" placeholder="Motivo del deceso..." rows="2"></textarea>
+                <textarea formControlName="motivo" placeholder="Motivo del deceso..." rows="2" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()"></textarea>
               </div>
             </form>
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-danger" (click)="saveDeadBirds()" [disabled]="savingDeadBirds()">
-              @if (savingDeadBirds()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
-              Registrar
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-danger" (click)="saveDeadBirds()" [disabled]="savingDeadBirds()">
+                @if (savingDeadBirds()) { <span class="spinner-sm"></span> } @else { <i class="fas fa-save"></i> }
+                Registrar
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -583,6 +611,13 @@ import { ConfirmService } from '../../core/services/confirm.service';
     .detail-label { font-size: 1.1rem; font-weight: 600; color: var(--gray-dark); text-transform: uppercase; opacity: 0.7; }
     .detail-value { font-size: 1.4rem; color: var(--gray-dark); word-break: break-all; }
     .history-section h4 { font-size: 1.6rem; font-weight: 700; color: var(--gray-dark); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.8rem; }
+    .capacity-indicator {
+      margin-top: 0.6rem; padding: 0.7rem 1rem; border-radius: 6px; font-size: 1.3rem; font-weight: 600;
+      display: flex; align-items: center; gap: 0.6rem;
+      &.cap-ok  { background: rgba(57,169,0,0.1);  color: #2d7a00; border: 1px solid rgba(57,169,0,0.3); }
+      &.cap-warn { background: rgba(255,152,0,0.12); color: #b36200; border: 1px solid rgba(255,152,0,0.4); }
+      &.cap-full { background: rgba(244,67,54,0.1);  color: #b71c1c; border: 1px solid rgba(244,67,54,0.3); }
+    }
   `],
 })
 export class FlocksComponent implements OnInit {
@@ -608,7 +643,7 @@ export class FlocksComponent implements OnInit {
   currentPage = 1;
   totalPages = 1;
   totalItems = 0;
-  limit = 10;
+  limit = 5;
 
   showFlockModal = signal(false);
   showBarnModal = signal(false);
@@ -624,6 +659,38 @@ export class FlocksComponent implements OnInit {
   selectedFlock = signal<Flock | null>(null);
   detailsHistory = signal<any[]>([]);
   loadingHistory = signal(false);
+
+  // Pagination for Barns and Detail history
+  barnsPage = 1;
+  barnsLimit = 5;
+  detailsHistoryPage = 1;
+  detailsHistoryLimit = 5;
+
+  get pagedBarns(): Barn[] {
+    const start = (this.barnsPage - 1) * this.barnsLimit;
+    return this.filteredBarns().slice(start, start + this.barnsLimit);
+  }
+
+  get barnsTotalPages(): number {
+    return Math.ceil(this.filteredBarns().length / this.barnsLimit);
+  }
+
+  onBarnsPageChange(page: number): void {
+    this.barnsPage = page;
+  }
+
+  get pagedDetailsHistory(): any[] {
+    const start = (this.detailsHistoryPage - 1) * this.detailsHistoryLimit;
+    return this.detailsHistory().slice(start, start + this.detailsHistoryLimit);
+  }
+
+  get detailsHistoryTotalPages(): number {
+    return Math.ceil(this.detailsHistory().length / this.detailsHistoryLimit);
+  }
+
+  onDetailsHistoryPageChange(page: number): void {
+    this.detailsHistoryPage = page;
+  }
 
   // History tab
   historyItems = signal<any[]>([]);
@@ -648,6 +715,55 @@ export class FlocksComponent implements OnInit {
     galponId: ['', Validators.required],
     observacion: ['', Validators.required],
     racion_alimento: ['', Validators.required],
+  });
+
+  /**
+   * Reactive bridge: converts flockForm.valueChanges (RxJS Observable) into
+   * an Angular signal so that computed() can depend on it and update live.
+   */
+  private readonly flockFormValue = toSignal(this.flockForm.valueChanges, {
+    initialValue: this.flockForm.value,
+  });
+
+  /** Live capacity info for the Registrar Lote form's selected barn. */
+  barnCapacityInfo = computed(() => {
+    const v = this.flockFormValue();
+    const galponId = v?.galponId as string | null | undefined;
+    const totalAves = Number(v?.total_aves) || 0;
+    if (!galponId || !totalAves) return null;
+
+    const barn = this.barns().find(b => b.id_galpon === galponId);
+    if (!barn) return null;
+
+    // Count birds in ACTIVE flocks already assigned to this barn
+    const currentOccupancy = this.flocks()
+      .filter(f =>
+        (f.estado === 'ACTIVO' || f.estado === 'activo') &&
+        f.ubicacion?.some((u: any) => u.galpon?.id_galpon === galponId)
+      )
+      .reduce((sum, f) => sum + (f.total_aves || 0), 0);
+
+    const maxCapacity: number = barn.capacidad_max_aves;
+    const available = maxCapacity - currentOccupancy;
+    const projected = currentOccupancy + totalAves;
+    const pct = Math.round((currentOccupancy / maxCapacity) * 100);
+
+    if (projected > maxCapacity) {
+      return {
+        status: 'full' as const,
+        message: `Capacidad insuficiente. Disponible: ${Math.max(0, available)} aves (ocupado: ${currentOccupancy}/${maxCapacity}).`,
+      };
+    } else if (projected > maxCapacity * 0.85) {
+      return {
+        status: 'warn' as const,
+        message: `Cerca del límite. Disponible: ${available} aves (ocupado: ${currentOccupancy}/${maxCapacity}, ${pct}%).`,
+      };
+    } else {
+      return {
+        status: 'ok' as const,
+        message: `Capacidad disponible: ${available} aves (ocupado: ${currentOccupancy}/${maxCapacity}).`,
+      };
+    }
   });
 
   // Form matching UpdateFlockDto (edit)
@@ -760,6 +876,7 @@ export class FlocksComponent implements OnInit {
     this.selectedFlock.set(flock);
     this.showDetailsModal.set(true);
     this.loadingHistory.set(true);
+    this.detailsHistoryPage = 1;
     this.flocksService.getHistory({ loteId: flock.id_lote, page: 1, limit: 50 }).subscribe({
       next: (res: any) => {
         const data = res?.data || (Array.isArray(res) ? res : []);
@@ -772,7 +889,7 @@ export class FlocksComponent implements OnInit {
 
   loadHistory(): void {
     this.loadingHistory.set(true);
-    this.flocksService.getHistory({ page: this.historyPage, limit: 10, search: this.historySearch }).subscribe({
+    this.flocksService.getHistory({ page: this.historyPage, limit: 5, search: this.historySearch }).subscribe({
       next: (res: any) => {
         const data = res?.data || (Array.isArray(res) ? res : []);
         this.historyItems.set(data);
@@ -794,6 +911,7 @@ export class FlocksComponent implements OnInit {
         b.nombre.toLowerCase().includes(q) || b.codigo.toLowerCase().includes(q)
       )
     );
+    this.barnsPage = 1;
   }
 
   onBarnSearchInput(): void { this.applyBarnFilter(); }
@@ -901,7 +1019,10 @@ export class FlocksComponent implements OnInit {
         this.loadData();
         this.refreshService.notifyDataChanged();
       },
-      error: () => this.toast.error('Error al eliminar el galpón'),
+      error: (err) =>{
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al eliminar el galpón');
+      },
     });
   }
 

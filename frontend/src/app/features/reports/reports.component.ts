@@ -102,8 +102,11 @@ import { Report } from '../../core/models';
             </div>
 
             <div class="modal_botones_reporte">
+              <button class="btn_preview" (click)="previewReport()" [disabled]="saving()">
+                <i class="fas fa-eye"></i> Vista Previa
+              </button>
               <button class="btn_descargar_completo" (click)="generateReport()" [disabled]="saving()">
-                <i class="fas fa-download"></i> Guardar y Generar PDF
+                <i class="fas fa-download"></i> {{ saving() ? 'Generando...' : 'Descargar CSV' }}
               </button>
             </div>
 
@@ -154,6 +157,9 @@ import { Report } from '../../core/models';
     .btn_descargar_completo { flex: 1; min-width: 200px; padding: 1.5rem; background: var(--primary-green); color: white; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; transition: all 0.3s ease; }
     .btn_descargar_completo:hover { background: #2d8600; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .btn_descargar_completo:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn_preview { flex: 0 0 auto; min-width: 160px; padding: 1.5rem; background: white; color: #1976d2; border: 2px solid #1976d2; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; transition: all 0.3s ease; }
+    .btn_preview:hover { background: rgba(25,118,210,0.08); transform: translateY(-2px); }
+    .btn_preview:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
     
     .modal_botones { display: flex; justify-content: flex-end; padding-top: 2rem; border-top: 1px solid #e0e0e0; }
     .btn_cerrar { padding: 1.2rem 3rem; background: #e0e0e0; color: #333; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
@@ -210,6 +216,42 @@ export class ReportsComponent implements OnInit {
     if (type === 'produccion') return 'Producción';
     if (type === 'historial') return 'Historial General';
     return 'General';
+  }
+
+  previewReport(): void {
+    this.saving.set(true);
+    const profile = this.authService.currentUser();
+    const data = {
+      tipo_reporte: this.selectedType(),
+      id_usuario: profile?.id_usuario ?? '',
+    };
+
+    this.reportsService.create(data).subscribe({
+      next: (report: any) => {
+        const reportId = report?.id_reporte;
+        if (!reportId) {
+          this.toast.error('No se pudo obtener el ID del reporte para vista previa');
+          this.saving.set(false);
+          return;
+        }
+        this.reportsService.downloadReport(reportId).subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            // Revoke after a short delay so the new tab can load
+            setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+            this.toast.success('Vista previa abierta en una nueva pestaña');
+          },
+          error: () => this.toast.error('Error al generar la vista previa'),
+          complete: () => this.saving.set(false),
+        });
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al crear el reporte');
+        this.saving.set(false);
+      },
+    });
   }
 
   generateReport(): void {

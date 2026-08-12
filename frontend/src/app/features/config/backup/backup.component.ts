@@ -2,6 +2,8 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { BackupApiService } from '../../../core/services/api.services';
 import { ToastService } from '../../../core/services/toast.service';
+import { PermissionsService } from '../../../core/services/permissions.service';
+import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 
 interface BackupFile {
   filename: string;
@@ -12,7 +14,7 @@ interface BackupFile {
 @Component({
   selector: 'app-backup',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, PaginationComponent],
   template: `
     <div class="backup-page">
       <div class="module-header">
@@ -27,10 +29,12 @@ interface BackupFile {
 
       <!-- Actions -->
       <div class="backup-actions">
-        <button class="btn-green" (click)="createBackup()" [disabled]="creating()">
-          <i class="fas" [class.fa-download]="!creating()" [class.fa-spinner]="creating()" [class.fa-spin]="creating()"></i>
-          {{ creating() ? 'Creando backup...' : 'Crear Backup' }}
-        </button>
+        @if (permissions.canWrite()) {
+          <button class="btn-green" (click)="createBackup()" [disabled]="creating()">
+            <i class="fas" [class.fa-download]="!creating()" [class.fa-spinner]="creating()" [class.fa-spin]="creating()"></i>
+            {{ creating() ? 'Creando backup...' : 'Crear Backup' }}
+          </button>
+        }
       </div>
 
       <!-- Backups list -->
@@ -60,9 +64,9 @@ interface BackupFile {
                 </tr>
               </thead>
               <tbody>
-                @for (backup of backups(); track backup.filename; let idx = $index) {
+                @for (backup of pagedBackups; track backup.filename; let idx = $index) {
                   <tr style="border-bottom: 1px solid #e0e0e0;">
-                    <td style="padding: 1.5rem; font-size: 1.4rem;"><strong>{{ idx + 1 }}</strong></td>
+                    <td style="padding: 1.5rem; font-size: 1.4rem;"><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                     <td style="padding: 1.5rem; font-size: 1.4rem;">
                       <i class="fas fa-file-alt" style="color: var(--primary-green); margin-right: 0.5rem;"></i>
                       {{ backup.filename }}
@@ -70,14 +74,24 @@ interface BackupFile {
                     <td style="padding: 1.5rem; font-size: 1.4rem;">{{ formatSize(backup.size) }}</td>
                     <td style="padding: 1.5rem; font-size: 1.4rem;">{{ backup.createdAt | date:'short' }}</td>
                     <td style="padding: 1.5rem;">
-                      <button class="btn-icon edit" title="Restaurar" (click)="confirmRestore(backup)" [disabled]="restoring()">
-                        <i class="fas fa-undo"></i>
-                      </button>
+                      @if (permissions.canWrite()) {
+                        <button class="btn-icon edit" title="Restaurar" (click)="confirmRestore(backup)" [disabled]="restoring()">
+                          <i class="fas fa-undo"></i>
+                        </button>
+                      }
                     </td>
                   </tr>
                 }
               </tbody>
             </table>
+          </div>
+          <div style="padding: 0 2rem 2rem 2rem;">
+            <app-pagination 
+              [currentPage]="currentPage" 
+              [totalPages]="totalPages" 
+              [totalItems]="backups().length"
+              (pageChange)="onPageChange($event)">
+            </app-pagination>
           </div>
         }
       </div>
@@ -102,10 +116,12 @@ interface BackupFile {
             </div>
             <div class="modal-footer">
               <button class="btn-outline" (click)="showRestoreModal.set(false)">Cancelar</button>
-              <button class="btn-danger" (click)="executeRestore()" [disabled]="restoring()">
-                <i class="fas" [class.fa-undo]="!restoring()" [class.fa-spinner]="restoring()" [class.fa-spin]="restoring()"></i>
-                {{ restoring() ? 'Restaurando...' : 'Restaurar' }}
-              </button>
+              @if (permissions.canWrite()) {
+                <button class="btn-danger" (click)="executeRestore()" [disabled]="restoring()">
+                  <i class="fas" [class.fa-undo]="!restoring()" [class.fa-spinner]="restoring()" [class.fa-spin]="restoring()"></i>
+                  {{ restoring() ? 'Restaurando...' : 'Restaurar' }}
+                </button>
+              }
             </div>
           </div>
         </div>
@@ -119,6 +135,7 @@ interface BackupFile {
 export class BackupComponent implements OnInit {
   private backupService = inject(BackupApiService);
   private toast = inject(ToastService);
+  public permissions = inject(PermissionsService);
 
   backups = signal<BackupFile[]>([]);
   loading = signal(true);
@@ -126,6 +143,22 @@ export class BackupComponent implements OnInit {
   restoring = signal(false);
   showRestoreModal = signal(false);
   selectedBackup = signal<BackupFile | null>(null);
+
+  currentPage = 1;
+  limit = 5;
+
+  get pagedBackups(): BackupFile[] {
+    const start = (this.currentPage - 1) * this.limit;
+    return this.backups().slice(start, start + this.limit);
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.backups().length / this.limit);
+  }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+  }
 
   ngOnInit(): void {
     this.loadBackups();
@@ -136,6 +169,7 @@ export class BackupComponent implements OnInit {
     this.backupService.listBackups().subscribe({
       next: (data) => {
         this.backups.set(Array.isArray(data) ? data : []);
+        this.currentPage = 1;
         this.loading.set(false);
       },
       error: () => {
