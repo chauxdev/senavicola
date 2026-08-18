@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Res, Query } from '@nestjs/common';
 import express from 'express';
 import { ReportsService } from './reports.service';
 import { CreateReportDto } from './dto/create-report.dto';
@@ -25,10 +25,29 @@ export class ReportsController {
 
   @Get(':id/download')
   @RequirePermission('REPORTES_VER')
-  async download(@Param('id') id: string, @Res() res: express.Response) {
-    const { filename, buffer } = await this.service.generateCsvBuffer(id);
+  async download(
+    @Param('id') id: string,
+    @Res() res: express.Response,
+    @Query('fechaInicio') fechaInicio?: string,
+    @Query('fechaFin') fechaFin?: string,
+  ) {
+    const { filename, buffer } = await this.service.generateCsvBuffer(id, fechaInicio, fechaFin);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send(buffer);
+  }
+
+  @Get(':id/download-pdf')
+  @RequirePermission('REPORTES_VER')
+  async downloadPdf(
+    @Param('id') id: string,
+    @Res() res: express.Response,
+    @Query('fechaInicio') fechaInicio?: string,
+    @Query('fechaFin') fechaFin?: string,
+  ) {
+    const { filename, buffer } = await this.service.generatePdfBuffer(id, fechaInicio, fechaFin);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/pdf');
     res.send(buffer);
   }
 

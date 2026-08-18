@@ -181,9 +181,18 @@ export class BackupComponent implements OnInit {
 
   createBackup(): void {
     this.creating.set(true);
-    this.backupService.createBackup().subscribe({
-      next: (res) => {
-        this.toast.success('Backup creado exitosamente');
+    this.backupService.downloadBackup().subscribe({
+      next: (blob: Blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backup_${Date.now()}.sql`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        this.toast.success('Backup creado y descargado exitosamente');
         this.loadBackups();
       },
       error: (err) => {

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { BaseApiService, extractData, extractArray } from './base-api.service';
 import { environment } from '../../../environments/environment';
@@ -335,8 +335,22 @@ export class ReportsService {
     );
   }
 
-  downloadReport(id: string): Observable<Blob> {
+  downloadReport(id: string, fechaInicio?: string, fechaFin?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (fechaInicio) params = params.set('fechaInicio', fechaInicio);
+    if (fechaFin) params = params.set('fechaFin', fechaFin);
     return this.http.get(`${this.baseUrl}/reports/${id}/download`, {
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  downloadPdfReport(id: string, fechaInicio?: string, fechaFin?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (fechaInicio) params = params.set('fechaInicio', fechaInicio);
+    if (fechaFin) params = params.set('fechaFin', fechaFin);
+    return this.http.get(`${this.baseUrl}/reports/${id}/download-pdf`, {
+      params,
       responseType: 'blob'
     });
   }
@@ -365,6 +379,12 @@ export class BackupApiService {
     return this.http.get<unknown>(`${this.baseUrl}/configuracion/backup`).pipe(
       map(response => extractData<any>(response))
     );
+  }
+
+  downloadBackup(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/configuracion/backup/download`, {
+      responseType: 'blob'
+    });
   }
 
   listBackups(): Observable<any[]> {

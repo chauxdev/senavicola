@@ -160,12 +160,12 @@ import { PermissionsService } from '../../core/services/permissions.service';
           <div class="modal-body">
             <form [formGroup]="supplyForm" (ngSubmit)="save()">
               <div class="form-group">
-                <label><i class="fas fa-file-signature"></i> Nombre del Insumo <span class="requerido">*</span></label>
+                <label><i class="fas fa-file-signature"></i> Nombre del Insumo <span style="color: red">*</span></label>
                 <input type="text" formControlName="nombre" placeholder="Ej: Maíz molido" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
               </div>
               
               <div class="form-group">
-                <label><i class="fas fa-tags"></i> Tipo de Insumo <span class="requerido">*</span></label>
+                <label><i class="fas fa-tags"></i> Tipo de Insumo <span style="color: red">*</span></label>
                 <select formControlName="id_categoria" [attr.disabled]="permissions.isVisitor() ? true : null">
                   <option value="">Seleccione una categoría</option>
                   @for (cat of categories(); track cat.id_categoria_insumo) {
@@ -177,11 +177,11 @@ import { PermissionsService } from '../../core/services/permissions.service';
               <!-- Fila: Cantidad | Unidad de Medida -->
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-balance-scale"></i> Cantidad <span class="requerido">*</span></label>
+                  <label><i class="fas fa-balance-scale"></i> Cantidad <span style="color: red">*</span></label>
                   <input type="number" formControlName="cantidad" placeholder="Ej: 50" step="1" min="0" oninput="this.value = this.value.replace(/[^0-9]/g, '')" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
-                  <label><i class="fas fa-weight-hanging"></i> Unidad de Medida <span class="requerido">*</span></label>
+                  <label><i class="fas fa-weight-hanging"></i> Unidad de Medida <span style="color: red">*</span></label>
                   <select formControlName="id_unidad_medida" [attr.disabled]="permissions.isVisitor() ? true : null">
                     <option value="">Seleccione unidad</option>
                     @for (unit of units(); track unit.id_unidad_medida) {
@@ -192,12 +192,12 @@ import { PermissionsService } from '../../core/services/permissions.service';
               </div>
 
               <div class="form-group">
-                <label><i class="fas fa-exclamation-triangle"></i> Stock Mínimo <span class="requerido">*</span></label>
+                <label><i class="fas fa-exclamation-triangle"></i> Stock Mínimo <span style="color: red">*</span></label>
                 <input type="number" formControlName="stockMinimo" placeholder="Ej: 10" step="1" min="0" oninput="this.value = this.value.replace(/[^0-9]/g, '')" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
 
               <div class="form-group">
-                <label><i class="fas fa-calendar-alt"></i> Fecha de ingreso <span class="requerido">*</span></label>
+                <label><i class="fas fa-calendar-alt"></i> Fecha de ingreso <span style="color: red">*</span></label>
                 <input type="date" formControlName="fecha" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
 
@@ -240,11 +240,11 @@ import { PermissionsService } from '../../core/services/permissions.service';
                 <input type="text" [value]="selectedSupply()?.nombre" disabled class="input-disabled" />
               </div>
               <div class="form-group">
-                <label><i class="fas fa-balance-scale"></i> Cantidad a agregar <span class="requerido">*</span></label>
+                <label><i class="fas fa-balance-scale"></i> Cantidad a agregar <span style="color: red">*</span></label>
                 <input type="number" formControlName="cantidad" placeholder="Ej: 20" step="1" min="0" oninput="this.value = this.value.replace(/[^0-9]/g, '')" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
-                <label><i class="fas fa-comment-alt"></i> Motivo <span class="requerido">*</span></label>
+                <label><i class="fas fa-comment-alt"></i> Motivo <span style="color: red">*</span></label>
                 <textarea formControlName="motivo" placeholder="Ej: Compra mensual de insumos..." rows="3" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()"></textarea>
               </div>
             </form>
@@ -603,8 +603,8 @@ export class SuppliesComponent implements OnInit {
     this.supplyForm.patchValue({
       nombre: supply.nombre,
       cantidad: supply.cantidad ?? null,
-      id_categoria: String(supply.id_categoria || ''),
-      id_unidad_medida: String(supply.id_unidad_medida || ''),
+      id_categoria: String(supply.categoria?.id_categoria_insumo || supply.id_categoria || ''),
+      id_unidad_medida: String(supply.unidadMedida?.id_unidad_medida || supply.id_unidad_medida || ''),
       stockMinimo: supply.stockMinimo ?? 0,
       fecha: supply.fecha ? new Date(supply.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       proveedor: supply.proveedor || '',
@@ -627,7 +627,6 @@ export class SuppliesComponent implements OnInit {
       fecha: formData.fecha,
       proveedor: formData.proveedor || null,
       precioUnitario: formData.precioUnitario !== null && formData.precioUnitario !== undefined && (formData.precioUnitario as any) !== '' ? Number(formData.precioUnitario) : 0,
-      id_llamar_usuario: 1, // Default user
     };
 
     const editing = this.editing();

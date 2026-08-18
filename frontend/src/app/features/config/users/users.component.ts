@@ -109,20 +109,20 @@ import { User, Role } from '../../../core/models';
           <div class="modal-body">
             <form [formGroup]="userForm">
               <div class="form-group">
-                <label><i class="fas fa-user"></i> Nombre</label>
+                <label><i class="fas fa-user"></i> Nombre <span style="color: red">*</span></label>
                 <input type="text" formControlName="nombre" placeholder="Nombre" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
-                <label><i class="fas fa-user"></i> Apellido</label>
+                <label><i class="fas fa-user"></i> Apellido <span style="color: red">*</span></label>
                 <input type="text" formControlName="apellido" placeholder="Apellido" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-id-card"></i> Documento</label>
+                  <label><i class="fas fa-id-card"></i> Documento <span style="color: red">*</span></label>
                   <input type="text" formControlName="documento" placeholder="Número de documento" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
                 </div>
                 <div class="form-group">
-                  <label><i class="fas fa-envelope"></i> Email</label>
+                  <label><i class="fas fa-envelope"></i> Email <span style="color: red">*</span></label>
                   <input type="email" formControlName="email" placeholder="correo@ejemplo.com" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
                 </div>
               </div>
@@ -133,7 +133,7 @@ import { User, Role } from '../../../core/models';
                     <input type="password" formControlName="password" placeholder="Contraseña" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                   </div>
                   <div class="form-group">
-                    <label><i class="fas fa-user-tag"></i> Rol Inicial</label>
+                    <label><i class="fas fa-user-tag"></i> Rol Inicial <span style="color: red">*</span></label>
                     <select formControlName="rolId" [attr.disabled]="permissions.isVisitor() ? true : null">
                       <option value="">Seleccionar rol</option>
                       @for (role of roles(); track role.id_rol) {

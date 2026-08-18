@@ -102,7 +102,12 @@ export interface CrudField {
             <form [formGroup]="form">
               @for (field of fields; track field.key) {
                 <div class="form-group">
-                  <label><i class="fas {{ icon }}"></i> {{ field.label }}</label>
+                  <label>
+                    <i class="fas {{ icon }}"></i> {{ field.label }}
+                    @if (field.required) {
+                      <span style="color: red">*</span>
+                    }
+                  </label>
                   @if (field.type === 'textarea') {
                     <textarea [formControlName]="field.key" [placeholder]="field.placeholder || ''" rows="3" [readonly]="permissions.isVisitor() || (editing() !== null && disabledOnEditFields.includes(field.key))" [class.input-disabled]="permissions.isVisitor() || (editing() !== null && disabledOnEditFields.includes(field.key))"></textarea>
                   } @else {

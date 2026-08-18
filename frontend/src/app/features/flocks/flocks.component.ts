@@ -296,11 +296,11 @@ import { ConfirmService } from '../../core/services/confirm.service';
             <form [formGroup]="flockForm">
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-tag"></i> Nombre del Lote</label>
+                  <label><i class="fas fa-tag"></i> Nombre del Lote <span style="color: red">*</span></label>
                   <input type="text" formControlName="nombre" placeholder="Ej: Lote A-2026" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
-                  <label><i class="fas fa-dove"></i> Total de Aves</label>
+                  <label><i class="fas fa-dove"></i> Total de Aves <span style="color: red">*</span></label>
                   <input type="number" formControlName="total_aves" placeholder="Ej: 500" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
@@ -333,7 +333,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-utensils"></i> Ración de Alimento</label>
+                  <label><i class="fas fa-utensils"></i> Ración de Alimento <span style="color: red">*</span></label>
                   <input type="text" formControlName="racion_alimento" placeholder="Ej: 120g/día" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
@@ -368,21 +368,21 @@ import { ConfirmService } from '../../core/services/confirm.service';
             <form [formGroup]="barnForm">
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-barcode"></i> Código</label>
+                  <label><i class="fas fa-barcode"></i> Código <span style="color: red">*</span></label>
                   <input type="text" formControlName="codigo" placeholder="Ej: G-001" [readonly]="permissions.isVisitor() || editingBarn() !== null" [class.input-disabled]="permissions.isVisitor() || editingBarn() !== null" />
                 </div>
                 <div class="form-group">
-                  <label><i class="fas fa-warehouse"></i> Nombre del Galpón</label>
+                  <label><i class="fas fa-warehouse"></i> Nombre del Galpón <span style="color: red">*</span></label>
                   <input type="text" formControlName="nombre" placeholder="Ej: Galpón 1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-users"></i> Capacidad Máx. Aves</label>
+                  <label><i class="fas fa-users"></i> Capacidad Máx. Aves <span style="color: red">*</span></label>
                   <input type="number" formControlName="capacidad_max_aves" placeholder="Ej: 500" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
                 <div class="form-group">
-                  <label><i class="fas fa-ruler-combined"></i> Área (m²)</label>
+                  <label><i class="fas fa-ruler-combined"></i> Área (m²) <span style="color: red">*</span></label>
                   <input type="number" formControlName="area" placeholder="Ej: 120.5" min="0.1" step="0.1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                 </div>
               </div>

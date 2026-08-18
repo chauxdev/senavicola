@@ -90,7 +90,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                   </select>
                 </div>
                 <div class="form_group">
-                  <label>Seleccionar Lote</label>
+                  <label>Seleccionar Lote <span style="color: red">*</span></label>
                   <select formControlName="loteId">
                     <option value="">Seleccionar</option>
                     @for (flock of filteredManualFlocks(); track flock.id_lote) {
@@ -99,7 +99,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                   </select>
                 </div>
                 <div class="form_group">
-                  <label>Seleccionar Tipo de Huevo</label>
+                  <label>Seleccionar Tipo de Huevo <span style="color: red">*</span></label>
                   <select formControlName="tipoHuevoId">
                     <option value="">Seleccionar</option>
                     @for (type of eggTypes(); track type.id_tipo) {
@@ -110,7 +110,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
               </div>
               <div class="form_row" style="grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
                 <div class="form_group">
-                  <label>Cantidad de huevos</label>
+                  <label>Cantidad de huevos <span style="color: red">*</span></label>
                   <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" />
                 </div>
                 <div class="form_group_btn" style="display: flex; align-items: flex-end;">
@@ -494,7 +494,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
           <div class="modal-body">
             <form [formGroup]="editForm" (ngSubmit)="saveEdit()">
               <div class="form-group">
-                <label>Seleccionar Lote <span class="requerido">*</span></label>
+                <label>Seleccionar Lote <span style="color: red">*</span></label>
                 <select formControlName="loteId" [attr.disabled]="permissions.isVisitor() ? true : null">
                   <option value="">Seleccionar</option>
                   @for (flock of flocks(); track flock.id_lote) {
@@ -503,7 +503,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 </select>
               </div>
               <div class="form-group">
-                <label>Seleccionar Tipo de Huevo <span class="requerido">*</span></label>
+                <label>Seleccionar Tipo de Huevo <span style="color: red">*</span></label>
                 <select formControlName="tipoHuevoId" [attr.disabled]="permissions.isVisitor() ? true : null">
                   <option value="">Seleccionar</option>
                   @for (type of eggTypes(); track type.id_tipo) {
@@ -512,7 +512,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 </select>
               </div>
               <div class="form-group">
-                <label>Cantidad <span class="requerido">*</span></label>
+                <label>Cantidad <span style="color: red">*</span></label>
                 <input type="number" formControlName="cantidad" placeholder="Ej: 30" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
             </form>
@@ -542,11 +542,11 @@ import { ConfirmService } from '../../core/services/confirm.service';
                 <input type="number" [value]="selectedInventory()?.cantidad || 0" readonly class="input-disabled" />
               </div>
               <div class="form-group">
-                <label>Cantidad Dañada <span class="requerido">*</span></label>
+                <label>Cantidad Dañada <span style="color: red">*</span></label>
                 <input type="number" formControlName="cantidad" placeholder="Ej: 5" min="1" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
-                <label>Razón <span class="requerido">*</span></label>
+                <label>Razón <span style="color: red">*</span></label>
                 <input type="text" formControlName="razon" placeholder="Ej: Rotos en transporte" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
             </form>

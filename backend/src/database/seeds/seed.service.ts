@@ -188,6 +188,57 @@ export class SeedService {
             );
             console.log('✓ Registro llamar_usuario creado para el admin');
         }
+
+        // --- Usuario Operario (Aprendiz) ---
+        const operarioExiste = await this.usersRepository.findOne({
+            where: { documento: '111111' },
+        });
+
+        const passwordOperario = await bcrypt.hash('Operario123', 10);
+        let operarioUser: User;
+
+        if (!operarioExiste) {
+            operarioUser = await this.usersRepository.save({
+                email: 'operario@test.com',
+                password: passwordOperario,
+                nombre: 'Operario',
+                apellido: 'Aprendiz',
+                documento: '111111',
+                activo: true,
+            });
+
+            const rolAprendiz = await this.rolesRepository.findOne({
+                where: { nombre: 'aprendiz' },
+            });
+
+            if (!rolAprendiz) throw new Error('Rol aprendiz no encontrado');
+
+            await this.userRoleRepository.save({
+                id_usuario: operarioUser.id_usuario,
+                id_rol: rolAprendiz.id_rol,
+            });
+
+            console.log('✓ Usuario Operario creado: documento=111111 / contraseña=Operario123');
+        } else {
+            await this.usersRepository.update(
+                { documento: '111111' },
+                { password: passwordOperario }
+            );
+            operarioUser = operarioExiste;
+            console.log('✓ Operario existente: contraseña actualizada a Operario123');
+        }
+
+        const operarioLlamar = await this.usersRepository.query(
+            `SELECT * FROM llamar_usuario WHERE id_usuario = $1`,
+            [operarioUser.id_usuario]
+        );
+        if (operarioLlamar.length === 0) {
+            await this.usersRepository.query(
+                `INSERT INTO llamar_usuario (id_usuario) VALUES ($1)`,
+                [operarioUser.id_usuario]
+            );
+            console.log('✓ Registro llamar_usuario creado para el operario');
+        }
     }
 
     private async seedBreeds() {

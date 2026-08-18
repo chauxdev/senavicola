@@ -45,9 +45,9 @@ import { CommonModule } from '@angular/common';
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1.5rem 0;
+      padding: 1.5rem 2rem;
       border-top: 1px solid var(--gray-medium, #e0e0e0);
-      margin-top: 1rem;
+      margin-top: 1.5rem;
       flex-wrap: wrap;
       gap: 1rem;
     }

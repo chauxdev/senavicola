@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { ReportsService } from '../../core/services/api.services';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -9,7 +9,7 @@ import { Report } from '../../core/models';
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   template: `
     <div class="reports-page">
       <!-- Header Secundario -->
@@ -88,6 +88,17 @@ import { Report } from '../../core/models';
               <p><strong>Generado por:</strong> <span>{{ userName() }}</span></p>
             </div>
             
+            <div class="filtros_fechas" style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+              <div style="flex: 1;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">Fecha Inicio</label>
+                <input type="date" [(ngModel)]="fechaInicio" style="width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 4px;" />
+              </div>
+              <div style="flex: 1;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">Fecha Fin</label>
+                <input type="date" [(ngModel)]="fechaFin" style="width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 4px;" />
+              </div>
+            </div>
+            
             <div class="preview_tabla">
               <h4>Vista Previa - {{ getModalTitle() }}</h4>
               <div class="tabla_preview">
@@ -105,8 +116,11 @@ import { Report } from '../../core/models';
               <button class="btn_preview" (click)="previewReport()" [disabled]="saving()">
                 <i class="fas fa-eye"></i> Vista Previa
               </button>
-              <button class="btn_descargar_completo" (click)="generateReport()" [disabled]="saving()">
-                <i class="fas fa-download"></i> {{ saving() ? 'Generando...' : 'Descargar CSV' }}
+              <button class="btn_descargar_completo" (click)="generateReport()" [disabled]="saving()" style="background: #1976d2;">
+                <i class="fas fa-file-excel"></i> {{ saving() ? 'Generando...' : 'Descargar Excel' }}
+              </button>
+              <button class="btn_descargar_completo" (click)="generatePdf()" [disabled]="saving()" style="background: #d32f2f;">
+                <i class="fas fa-file-pdf"></i> {{ saving() ? 'Generando...' : 'Descargar PDF' }}
               </button>
             </div>
 
@@ -178,6 +192,8 @@ export class ReportsComponent implements OnInit {
   saving = signal(false);
   selectedType = signal<string>('');
   currentDate = new Date();
+  fechaInicio = '';
+  fechaFin = '';
 
   ngOnInit(): void { this.loadReports(); }
 
@@ -195,6 +211,8 @@ export class ReportsComponent implements OnInit {
 
   abrirModalReporte(type: string): void {
     this.selectedType.set(type);
+    this.fechaInicio = '';
+    this.fechaFin = '';
     this.showModal.set(true);
   }
 
@@ -228,7 +246,7 @@ export class ReportsComponent implements OnInit {
 
     this.reportsService.create(data).subscribe({
       next: (report: any) => {
-        const reportId = report?.id_reporte;
+        const reportId = report?.data?.id_reporte || report?.id_reporte;
         if (!reportId) {
           this.toast.error('No se pudo obtener el ID del reporte para vista previa');
           this.saving.set(false);
@@ -266,7 +284,7 @@ export class ReportsComponent implements OnInit {
     // Step 1: Create the report record
     this.reportsService.create(data).subscribe({
       next: (report: any) => {
-        const reportId = report?.id_reporte;
+        const reportId = report?.data?.id_reporte || report?.id_reporte;
         if (!reportId) {
           this.toast.success('Reporte guardado exitosamente');
           this.showModal.set(false);
@@ -275,7 +293,7 @@ export class ReportsComponent implements OnInit {
           return;
         }
         // Step 2: Download the CSV blob
-        this.reportsService.downloadReport(reportId).subscribe({
+        this.reportsService.downloadReport(reportId, this.fechaInicio, this.fechaFin).subscribe({
           next: (blob: Blob) => {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -286,6 +304,57 @@ export class ReportsComponent implements OnInit {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
             this.toast.success('Reporte descargado exitosamente');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          error: () => {
+            this.toast.success('Reporte guardado (descarga no disponible)');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          complete: () => this.saving.set(false),
+        });
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el reporte');
+        this.saving.set(false);
+      },
+    });
+  }
+
+  generatePdf(): void {
+    this.saving.set(true);
+
+    const profile = this.authService.currentUser();
+    const data = {
+      tipo_reporte: this.selectedType(),
+      id_usuario: profile?.id_usuario ?? '',
+    };
+
+    this.reportsService.create(data).subscribe({
+      next: (report: any) => {
+        const reportId = report?.data?.id_reporte || report?.id_reporte;
+        if (!reportId) {
+          this.toast.success('Reporte guardado exitosamente');
+          this.showModal.set(false);
+          this.loadReports();
+          this.saving.set(false);
+          return;
+        }
+        
+        this.reportsService.downloadPdfReport(reportId, this.fechaInicio, this.fechaFin).subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte-${this.selectedType()}-${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            this.toast.success('PDF descargado exitosamente');
             this.showModal.set(false);
             this.loadReports();
           },

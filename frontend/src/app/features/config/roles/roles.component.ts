@@ -81,7 +81,7 @@ import { Role, Permission } from '../../../core/models';
           <div class="modal-body">
             <form [formGroup]="roleForm">
               <div class="form-group">
-                <label><i class="fas fa-user-tag"></i> Nombre del Rol</label>
+                <label><i class="fas fa-user-tag"></i> Nombre del Rol <span style="color: red">*</span></label>
                 <input type="text" formControlName="nombre" placeholder="Ej: Administrador" [readonly]="editing() !== null" [class.input-disabled]="editing() !== null" />
               </div>
               <div class="form-group">
@@ -89,7 +89,7 @@ import { Role, Permission } from '../../../core/models';
                 <textarea formControlName="descripcion" placeholder="Descripción del rol..." rows="3"></textarea>
               </div>
               <div class="form-group">
-                <label><i class="fas fa-lock"></i> Permisos</label>
+                <label><i class="fas fa-lock"></i> Permisos <span style="color: red">*</span></label>
                 <div class="permissions-filters" style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem">
                   <input class="input_busqueda" placeholder="Buscar permiso..." [(ngModel)]="permissionFilter" [ngModelOptions]="{standalone: true}" (input)="onFilterChange()" />
                   <select [(ngModel)]="moduleFilter" [ngModelOptions]="{standalone: true}" (change)="onFilterChange()">
