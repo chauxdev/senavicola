@@ -23,6 +23,7 @@ import { HealthModule } from './health/health.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BackupModule } from './backup/backup.module';
 import { DatabaseSeedModule } from './database/seeds/database-seed.module';
+import { VisionModule } from './vision/vision.module';
 
 import { validateEnv } from './config/env.validation';
 
@@ -70,6 +71,7 @@ import { validateEnv } from './config/env.validation';
     DashboardModule,
     BackupModule,
     DatabaseSeedModule,
+    VisionModule,
   ],
   controllers: [],
   providers: [

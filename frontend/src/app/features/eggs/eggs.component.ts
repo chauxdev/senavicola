@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import { Component, inject, OnInit, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -11,6 +11,8 @@ import { EggInventory, EggType, Flock, Barn } from '../../core/models';
 import { ModuleHeaderComponent } from '../../shared/components/module-header/module-header.component';
 import { DashboardRefreshService } from '../../core/services/dashboard-refresh.service';
 import { ConfirmService } from '../../core/services/confirm.service';
+import { CameraService, CameraStatus } from '../../core/services/camera.service';
+import { VisionApiService, VisionModelInfo } from '../../core/services/vision.service';
 
 @Component({
   selector: 'app-eggs',
@@ -141,48 +143,111 @@ import { ConfirmService } from '../../core/services/confirm.service';
           </div>
 
           <div class="auto-classifier-container" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 3rem; margin-top: 2rem;">
-            <!-- Panel Izquierdo: Simulación de Cámara -->
+            <!-- Panel Izquierdo: Simulación de Cámara -> Cámara Real -->
             <div class="camera-simulation-panel" style="background: #f8f9fa; border-radius: 12px; padding: 2rem; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 2rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div style="display: flex; align-items: center; gap: 1rem;">
                   <h4 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: #333;">Vista de Cámara</h4>
                   <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.2rem; font-weight: 600;">
-                    <span [style.background]="cameraStatus() === 'conectado' ? '#4caf50' : '#f44336'" style="width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
-                    <span [style.color]="cameraStatus() === 'conectado' ? '#4caf50' : '#f44336'">{{ cameraStatus() | uppercase }}</span>
+                    <span [style.background]="cameraStatus() === 'conectado' ? '#4caf50' : (cameraStatus() === 'error' ? '#f44336' : '#94a3b8')" style="width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
+                    <span [style.color]="cameraStatus() === 'conectado' ? '#4caf50' : (cameraStatus() === 'error' ? '#f44336' : '#94a3b8')">{{ cameraStatus() | uppercase }}</span>
                   </div>
                 </div>
-                <select [value]="selectedCamera()" (change)="selectedCamera.set($any($event.target).value)" style="padding: 0.6rem 1rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1.3rem;">
-                  <option value="camara_1">Cámara 1 (Línea Principal)</option>
-                  <option value="camara_2">Cámara 2 (Línea Secundaria)</option>
-                </select>
+                
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                  <select [value]="selectedModelId()" (change)="selectedModelId.set($any($event.target).value)" style="padding: 0.6rem 1rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1.3rem;">
+                    @if (availableModels().length === 0) {
+                      <option value="">Cargando IA...</option>
+                    }
+                    @for (model of availableModels(); track model.id) {
+                      <option [value]="model.id">{{ model.name }} {{ model.isAvailable ? '✓' : '⚠ No config' }}</option>
+                    }
+                  </select>
+                  <select [value]="selectedCamera()" (change)="selectedCamera.set($any($event.target).value); toggleCamera(true)" style="padding: 0.6rem 1rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1.3rem;">
+                    @if (availableCameras().length === 0) {
+                      <option value="camara_1">Cámara Principal</option>
+                    }
+                    @for (cam of availableCameras(); track cam.deviceId) {
+                      <option [value]="cam.deviceId">{{ cam.label || 'Cámara ' + ($index + 1) }}</option>
+                    }
+                  </select>
+                </div>
               </div>
 
-              <!-- Camera View Simulator Screen -->
+              <!-- Camera Screen -->
               <div class="camera-screen" style="position: relative; aspect-ratio: 16/9; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: white;">
-                @if (cameraStatus() === 'conectado') {
-                  <div style="text-align: center; z-index: 10;">
-                    <i class="fas fa-video" style="font-size: 4rem; color: #4caf50; animation: pulse 2s infinite; margin-bottom: 1rem; display: block;"></i>
-                    <p style="font-size: 1.3rem; margin: 0; color: #94a3b8;">TRANSMITIENDO EN VIVO</p>
-                    @if (lastDetectedWeight()) {
-                      <div style="margin-top: 1.5rem; background: rgba(76,175,80,0.25); border: 1px solid #4caf50; padding: 1rem 2rem; border-radius: 6px; font-weight: 700; font-size: 1.6rem; color: #4caf50; backdrop-filter: blur(4px);">
-                        Último Peso: {{ lastDetectedWeight() }}g ({{ lastDetectedType() }})
-                      </div>
-                    }
-                  </div>
-                  <!-- Simulated Scan Line -->
-                  <div style="position: absolute; width: 100%; height: 2px; background: rgba(76,175,80,0.5); top: 0; left: 0; box-shadow: 0 0 10px #4caf50; animation: scan 3s linear infinite;"></div>
-                } @else {
+                <video #cameraVideo playsinline style="width: 100%; height: 100%; object-fit: contain;" [style.display]="cameraStatus() === 'conectado' ? 'block' : 'none'"></video>
+                
+                @if (cameraStatus() !== 'conectado') {
                   <div style="text-align: center;">
                     <i class="fas fa-video-slash" style="font-size: 4rem; color: #f44336; margin-bottom: 1rem; display: block;"></i>
-                    <p style="font-size: 1.4rem; color: #94a3b8;">SIN SEÑAL DE CÁMARA</p>
+                    <p style="font-size: 1.4rem; color: #94a3b8;">{{ cameraStatus() === 'error' ? 'ERROR EN CÁMARA' : 'CÁMARA APAGADA' }}</p>
+                  </div>
+                }
+
+                @if (cameraStatus() === 'conectado' && isCalibrating()) {
+                  <div style="position: absolute; border: 2px dashed #ffeb3b; background: rgba(255, 235, 59, 0.2); cursor: move; display: flex; align-items: center; justify-content: center; color: #ffeb3b; font-weight: bold; text-shadow: 1px 1px 2px black;" 
+                    [style.left.px]="cameraService.currentCalibration.roi.x"
+                    [style.top.px]="cameraService.currentCalibration.roi.y"
+                    [style.width.px]="cameraService.currentCalibration.roi.width"
+                    [style.height.px]="cameraService.currentCalibration.roi.height">
+                    ROI
+                  </div>
+                }
+
+                @if (isPredicting()) {
+                  <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #4caf50; margin-bottom: 1rem;"></i>
+                    <span style="font-weight: 600;">Analizando imagen...</span>
                   </div>
                 }
               </div>
 
-              <div style="display: flex; gap: 1.5rem;">
-                <button type="button" class="btn-green" [disabled]="permissions.isVisitor()" (click)="cameraStatus.set(cameraStatus() === 'conectado' ? 'desconectado' : 'conectado')" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; justify-content: center; display: flex; align-items: center; gap: 0.5rem;">
-                  <i class="fas" [class.fa-plug]="cameraStatus() !== 'conectado'" [class.fa-power-off]="cameraStatus() === 'conectado'"></i>
-                  {{ cameraStatus() === 'conectado' ? 'Desconectar Cámara' : 'Conectar Cámara' }}
+              @if (isCalibrating()) {
+                <div style="background: #fff; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 1rem;">
+                  <h5 style="margin: 0; font-size: 1.4rem;"><i class="fas fa-crosshairs"></i> Calibración de visión artificial</h5>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                      <label style="font-size: 1.2rem; display: block; margin-bottom: 0.5rem;">Posición X (px)</label>
+                      <input type="number" [(ngModel)]="cameraService.currentCalibration.roi.x" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                    <div>
+                      <label style="font-size: 1.2rem; display: block; margin-bottom: 0.5rem;">Posición Y (px)</label>
+                      <input type="number" [(ngModel)]="cameraService.currentCalibration.roi.y" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                    <div>
+                      <label style="font-size: 1.2rem; display: block; margin-bottom: 0.5rem;">Ancho (px)</label>
+                      <input type="number" [(ngModel)]="cameraService.currentCalibration.roi.width" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                    <div>
+                      <label style="font-size: 1.2rem; display: block; margin-bottom: 0.5rem;">Alto (px)</label>
+                      <input type="number" [(ngModel)]="cameraService.currentCalibration.roi.height" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                    </div>
+                    <div style="grid-column: span 2;">
+                      <label style="font-size: 1.2rem; display: block; margin-bottom: 0.5rem;">Altura de la cámara (cm)</label>
+                      <div style="display: flex; gap: 1rem; align-items: center;">
+                        <input type="range" [(ngModel)]="cameraService.currentCalibration.cameraHeight" min="10" max="100" style="flex: 1;" />
+                        <span style="font-weight: bold; font-size: 1.3rem;">{{ cameraService.currentCalibration.cameraHeight }} cm</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                    <button class="btn-green" (click)="saveCalibration()" style="flex: 1; padding: 0.8rem; border-radius: 6px;"><i class="fas fa-save"></i> Guardar</button>
+                    <button class="btn-secondary" (click)="isCalibrating.set(false)" style="flex: 1; padding: 0.8rem; border-radius: 6px;">Cerrar</button>
+                  </div>
+                </div>
+              }
+
+              <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                <button type="button" class="btn-green" [disabled]="permissions.isVisitor()" (click)="toggleCamera()" style="flex: 1; padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; justify-content: center; display: flex; align-items: center; gap: 0.5rem;">
+                  @if (cameraStatus() === 'conectado') {
+                    <i class="fas fa-power-off"></i> Detener cámara
+                  } @else {
+                    <i class="fas fa-plug"></i> Iniciar cámara
+                  }
+                </button>
+                <button type="button" class="btn-secondary" [disabled]="permissions.isVisitor() || cameraStatus() !== 'conectado'" (click)="isCalibrating.set(!isCalibrating())" style="padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; background: #e2e8f0; border: none;">
+                  <i class="fas fa-tools"></i> Calibrar visión
                 </button>
               </div>
             </div>
@@ -657,21 +722,32 @@ export class EggsComponent implements OnInit {
   private flocksService = inject(FlocksService);
   private barnsService = inject(BarnsService);
   private toast = inject(ToastService);
-  public permissions = inject(PermissionsService);
-  private refreshService = inject(DashboardRefreshService);
-  private confirmService = inject(ConfirmService);
+  permissions = inject(PermissionsService);
+  refreshService = inject(DashboardRefreshService);
+  confirmService = inject(ConfirmService);
+  cameraService = inject(CameraService);
+  visionService = inject(VisionApiService);
 
-  loading = signal(true);
+  @ViewChild('cameraVideo') cameraVideo!: ElementRef<HTMLVideoElement>;
+
+  availableCameras = signal<MediaDeviceInfo[]>([]);
+  availableModels = signal<VisionModelInfo[]>([]);
+  selectedModelId = signal<string>('');
+  isCalibrating = signal(false);
+  isPredicting = signal(false);
+  loading = signal<boolean>(false);
+
+  // State
+  eggTypes = signal<EggType[]>([]);
   inventory = signal<EggInventory[]>([]);
   statsInventory = signal<EggInventory[]>([]);
   filtered = signal<EggInventory[]>([]);
-  eggTypes = signal<EggType[]>([]);
   flocks = signal<Flock[]>([]);
   barns = signal<Barn[]>([]);
   selectedManualBarnId = signal<string>('');
   selectedAutoBarnId = signal<string>('');
   selectedCamera = signal<string>('camara_1');
-  cameraStatus = signal<'conectado' | 'desconectado'>('conectado');
+  cameraStatus = signal<'conectado' | 'desconectado' | 'error'>('desconectado');
   lastDetectedWeight = signal<number | null>(null);
   lastDetectedType = signal<string>('');
   selectedAutoLoteId = signal<string>('');
@@ -747,28 +823,38 @@ export class EggsComponent implements OnInit {
 
   private typeColors = ['card_azul', 'card_morado', 'card_verde', 'card_verde_claro', 'card_amarillo', 'card_naranja', 'card_rojo'];
 
-  ngOnInit(): void {
+  async ngOnInit() {
     this.loadData();
     this.loadHistory();
     this.loadDamagedData();
+
+    this.searchSubject.pipe(debounceTime(300)).subscribe(() => { this.currentPage = 1; this.loadData(); });
+    this.historySearchSubject.pipe(debounceTime(300)).subscribe(() => { this.hCurrentPage = 1; this.loadHistory(); });
+    this.damagedSearchSubject.pipe(debounceTime(300)).subscribe(() => { this.dCurrentPage = 1; this.loadDamagedData(); });
+
+    // Load available cameras
+    this.availableCameras.set(await this.cameraService.getAvailableCameras());
+    if (this.availableCameras().length > 0) {
+      this.selectedCamera.set(this.availableCameras()[0].deviceId);
+    }
+    
+    // Load available models
+    this.visionService.getModels().subscribe({
+      next: (response: any) => {
+        const models = response.data ?? response;
+        this.availableModels.set(Array.isArray(models) ? models : []);
+        if (models && models.length > 0) {
+          this.selectedModelId.set(models[0].id);
+        }
+      },
+      error: (e) => console.error('Error loading vision models', e)
+    });
+
+    this.cameraService.cameraStatus.subscribe(status => this.cameraStatus.set(status));
+    
     this.eggTypesService.getAll().subscribe((t) => this.eggTypes.set(t));
     this.flocksService.getAll().subscribe((f) => this.flocks.set(Array.isArray(f) ? f.filter((fl) => fl.estado === 'ACTIVO') : []));
     this.barnsService.getAll().subscribe((b) => this.barns.set(Array.isArray(b) ? b : []));
-
-    this.searchSubject.pipe(debounceTime(300)).subscribe(() => {
-      this.currentPage = 1;
-      this.loadData();
-    });
-
-    this.damagedSearchSubject.pipe(debounceTime(300)).subscribe(() => {
-      this.dCurrentPage = 1;
-      this.loadDamagedData();
-    });
-
-    this.historySearchSubject.pipe(debounceTime(300)).subscribe(() => {
-      this.hCurrentPage = 1;
-      this.loadHistory();
-    });
   }
 
   typeColorClass(index: number): string {
@@ -1022,64 +1108,105 @@ export class EggsComponent implements OnInit {
     });
   }
 
+  async toggleCamera(forceRestart = false) {
+    if (this.cameraStatus() === 'conectado' && !forceRestart) {
+      this.cameraService.stopCamera();
+    } else {
+      try {
+        await this.cameraService.initializeCamera(this.selectedCamera(), this.cameraVideo.nativeElement);
+      } catch (err: any) {
+        this.toast.error(err.message);
+      }
+    }
+  }
+
+  saveCalibration() {
+    this.cameraService.saveCalibration(this.cameraService.currentCalibration);
+    this.toast.success('Calibración guardada correctamente');
+    this.isCalibrating.set(false);
+  }
+
   simulateAutoClassification(): void {
     if (!this.selectedAutoLoteId()) {
       this.toast.error('Debe seleccionar un lote para clasificar');
       return;
     }
     if (this.cameraStatus() !== 'conectado') {
-      this.toast.error('La cámara seleccionada está desconectada');
+      this.toast.error('La cámara está desconectada');
       return;
     }
 
-    this.saving.set(true);
-
-    // Simulate weight between 30g and 80g
-    const weight = Math.floor(Math.random() * 50) + 30;
-    this.lastDetectedWeight.set(weight);
-
-    // Determine type:
-    // Jumbo: > 73g
-    // AAA: 63-73g
-    // AA: 53-63g
-    // A: 43-53g
-    // B: 33-43g
-    // C: < 33g
-    let typeName = 'C';
-    if (weight > 73) typeName = 'Jumbo';
-    else if (weight >= 63) typeName = 'AAA';
-    else if (weight >= 53) typeName = 'AA';
-    else if (weight >= 43) typeName = 'A';
-    else if (weight >= 33) typeName = 'B';
-
-    this.lastDetectedType.set(typeName);
-
-    const matchingType = this.eggTypes().find(t => t.tipo.toLowerCase() === typeName.toLowerCase());
-    if (!matchingType) {
-      this.toast.error(`Tipo de huevo "${typeName}" no configurado en el sistema`);
-      this.saving.set(false);
+    const model = this.availableModels().find(m => m.id === this.selectedModelId());
+    if (model && !model.isAvailable) {
+      this.toast.error(`No se puede iniciar el modelo ${model.name}. El modelo todavía no está configurado.`);
       return;
     }
 
-    const payload = {
+    try {
+      this.isPredicting.set(true);
+      const frameBase64 = this.cameraService.getFrameBase64();
+      
+      this.visionService.predict(this.selectedModelId(), frameBase64, this.cameraService.currentCalibration).subscribe({
+        next: (res) => {
+          this.isPredicting.set(false);
+          if (!res.success) {
+            this.toast.error(res.message || 'Error en la predicción');
+            return;
+          }
+          
+          if (res.weight) {
+            this.lastDetectedWeight.set(res.weight);
+            this.saveAutoProduction(res.weight);
+          } else {
+            this.toast.error(`Modelo detectó: "${res.detected}", pero no pudo extraer un peso válido.`);
+          }
+        },
+        error: (err) => {
+          this.isPredicting.set(false);
+          this.toast.error('Error al comunicarse con el servicio de visión');
+        }
+      });
+    } catch (err: any) {
+      this.isPredicting.set(false);
+      this.toast.error(err.message);
+    }
+  }
+
+  private saveAutoProduction(weight: number) {
+    let detectedTypeId = '';
+    let detectedTypeName = '';
+    const types = this.eggTypes();
+    for (const type of types) {
+      if (weight >= type.peso_min && weight <= type.peso_max) {
+        detectedTypeId = type.id_tipo;
+        detectedTypeName = type.tipo;
+        break;
+      }
+    }
+    if (!detectedTypeId && types.length > 0) {
+      const type = types[types.length - 1];
+      detectedTypeId = type.id_tipo;
+      detectedTypeName = type.tipo;
+    }
+    this.lastDetectedType.set(detectedTypeName);
+
+    const data = {
       loteId: this.selectedAutoLoteId(),
-      tipoHuevoId: matchingType.id_tipo,
-      cantidad: this.autoQuantity() || 1
+      tipoHuevoId: detectedTypeId,
+      cantidad: Number(this.autoQuantity()),
     };
 
-    this.eggService.registerProduction(payload).subscribe({
+    this.saving.set(true);
+    this.eggService.registerProduction(data).subscribe({
       next: () => {
-        this.toast.success(`Capturado: ${weight}g (${typeName}). Registrado exitosamente.`);
+        this.toast.success(`Captura exitosa: ${weight}g (${detectedTypeName})`);
         this.loadData();
         this.loadHistory();
-        this.loadDamagedData();
         this.refreshService.notifyDataChanged();
       },
-      error: (err) => {
-        const msg = err?.error?.message;
-        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al registrar la producción automática');
-      },
-      complete: () => this.saving.set(false)
+      error: () => this.toast.error('Error al registrar la clasificación automática'),
+      complete: () => this.saving.set(false),
     });
   }
+
 }
