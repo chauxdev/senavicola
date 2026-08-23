@@ -13,6 +13,7 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 import { paginateAndRespond, StandardPaginationResponse } from '../common/utils/pagination.util';
 import { SupplyHistory } from '../supply-history/entities/supply-history.entity';
 import { SupplyAction } from '../supply-actions/entities/supply-action.entity';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class SuppliesService {
@@ -25,6 +26,8 @@ export class SuppliesService {
 
     @InjectRepository(SupplyAction)
     private readonly actionRepository: Repository<SupplyAction>,
+
+    private readonly usersService: UsersService,
   ) {}
 
   private parseIntegers(supply: Supply): Supply {
@@ -39,7 +42,7 @@ export class SuppliesService {
     return supply;
   }
 
-  async create(dto: CreateSupplyDto, userDisplayName: string = 'Sistema'): Promise<Supply> {
+  async create(dto: CreateSupplyDto, userDisplayName: string = 'Sistema', userObj?: any): Promise<Supply> {
     const existing = await this.insumoRepository.findOne({
       where: {
         nombre: dto.nombre,
@@ -53,8 +56,19 @@ export class SuppliesService {
       );
     }
 
+    let id_llamar_usuario = dto.id_llamar_usuario;
+    if (userObj && userObj.id_usuario && userObj.id_usuario !== 'guest') {
+      const callUser = await this.usersService.getLlamarUsuario(userObj.id_usuario);
+      id_llamar_usuario = callUser.id_llamar_usuario;
+    } else if (!id_llamar_usuario) {
+      // Si es invitado o no hay usuario, podríamos asignarlo a un usuario sistema o dejar que falle la BD si no permite nulos.
+      // Depende de la lógica del negocio. Usaremos 1 como fallback temporal (admin o sistema).
+      id_llamar_usuario = 1;
+    }
+
     const insumo = this.insumoRepository.create({
       ...dto,
+      id_llamar_usuario,
       fecha: new Date(dto.fecha),
     });
     const saved = await this.insumoRepository.save(insumo);

@@ -158,7 +158,7 @@ export class FlocksService extends BaseApiService<Flock> {
     return this.http.post(`${this.baseUrl}/flocks/asignar`, data);
   }
 
-  registerDeadBirds(data: { id_lote: string; cantidad: number; fecha?: string; motivo?: string }): Observable<unknown> {
+  registerDeadBirds(data: { loteId: string; cantidad: number; fecha?: string; motivo?: string }): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/flocks/aves-muertas`, data);
   }
 
@@ -362,8 +362,12 @@ export class DashboardApiService {
   private baseUrl = environment.apiUrl;
   constructor(private http: HttpClient) {}
 
-  getStats(): Observable<any> {
-    return this.http.get<unknown>(`${this.baseUrl}/dashboard/stats`).pipe(
+  getStats(period: string = 'week'): Observable<any> {
+    let params = new HttpParams();
+    if (period) {
+      params = params.set('period', period);
+    }
+    return this.http.get<unknown>(`${this.baseUrl}/dashboard/stats`, { params }).pipe(
       map(response => extractData<any>(response))
     );
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -11,7 +11,7 @@ export class DashboardController {
 
   @Get('stats')
   @RequirePermission('REPORTES_VER')
-  getStats() {
-    return this.dashboardService.getStats();
+  getStats(@Query('period') period?: string) {
+    return this.dashboardService.getStats(period);
   }
 }

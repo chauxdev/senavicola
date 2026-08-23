@@ -326,6 +326,15 @@ body {
 
     .table-actions { display: flex; gap: 1rem; align-items: center; }
   }
+
+  .table-responsive { overflow-x: auto; }
+  .data-table {
+    width: 100%; border-collapse: collapse;
+    th { padding: 1.2rem 1.5rem; background: var(--gray-light); font-size: 1.2rem; font-weight: 600; text-transform: uppercase; color: var(--gray-dark); text-align: left; }
+    td { padding: 1.2rem 1.5rem; border-top: 1px solid var(--gray-medium); font-size: 1.4rem; }
+    tr:hover td { background: rgba(57,169,0,0.03); }
+  }
+  .actions-cell { display: flex; gap: 0.5rem; }
 }
 
 /* ===== BUTTONS ===== */
@@ -570,6 +579,9 @@ body {
   &.inactive { background: rgba(244, 67, 54, 0.1); color: var(--danger); }
   &.pending { background: rgba(255, 152, 0, 0.1); color: #e65100; }
   &.finished { background: rgba(33, 150, 243, 0.1); color: #0d47a1; }
+  &.danger { background: rgba(244, 67, 54, 0.1); color: var(--danger); }
+  &.warning { background: rgba(255, 152, 0, 0.1); color: #e65100; }
+  &.info { background: #e3f2fd; color: #1565c0; }
 }
 
 /* ===== TOAST NOTIFICATIONS ===== */

@@ -17,7 +17,7 @@ export class DashboardService {
     @InjectRepository(EggProduction) private prodRepo: Repository<EggProduction>,
   ) {}
 
-  async getStats() {
+  async getStats(period: string = 'week') {
     // Totals
     const totalGalpones = await this.barnRepo.count();
     const totalInsumos = await this.supplyRepo.count();
@@ -27,7 +27,29 @@ export class DashboardService {
     const totalGallinas = flocks.filter(f => f.estado === 'ACTIVO').reduce((s, f) => s + (f.total_aves || 0), 0);
     const gallinasFinalizadas = flocks.filter(f => f.estado !== 'ACTIVO').reduce((s, f) => s + (f.total_aves || 0), 0);
 
-    const eggs = await this.eggRepo.find({ relations: ['tipo_huevo'] });
+    const now = new Date();
+    let startDate = new Date();
+    if (period === 'day') {
+      startDate.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      startDate.setDate(now.getDate() - 7);
+    } else if (period === 'month') {
+      startDate.setMonth(now.getMonth() - 1);
+    } else if (period === 'year') {
+      startDate.setFullYear(now.getFullYear() - 1);
+    } else {
+      startDate = new Date(0); // all
+    }
+
+    const eggsQuery = this.eggRepo.createQueryBuilder('e')
+      .leftJoinAndSelect('e.tipo_huevo', 'tipo_huevo')
+      .leftJoin('e.produccion', 'produccion');
+    
+    if (period !== 'all') {
+      eggsQuery.where('produccion.produccionFecha >= :startDate', { startDate });
+    }
+    
+    const eggs = await eggsQuery.getMany();
     const totalHuevos = eggs.reduce((s, e) => s + (e.cantidad || 0), 0);
     const totalClasificados = eggs.length;
 
@@ -45,21 +67,23 @@ export class DashboardService {
       insumosPorCategoria[cat] = (insumosPorCategoria[cat] || 0) + 1;
     }
 
-    // Producción últimos 7 días
-    const last7Days = new Date();
-    last7Days.setDate(last7Days.getDate() - 7);
-    
-    const production = await this.prodRepo.createQueryBuilder('p')
-      .where('p.produccionFecha >= :date', { date: last7Days })
-      .orderBy('p.produccionFecha', 'ASC')
-      .getMany();
+    const prodQuery = this.prodRepo.createQueryBuilder('p');
+    if (period !== 'all') {
+      prodQuery.where('p.produccionFecha >= :startDate', { startDate });
+    }
+    const production = await prodQuery.orderBy('p.produccionFecha', 'ASC').getMany();
 
     const produccionPorDia = {};
     const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    
     for (const p of production) {
       const date = new Date(p.produccionFecha);
-      const dayName = diasSemana[date.getDay()];
-      produccionPorDia[dayName] = (produccionPorDia[dayName] || 0) + p.cantidady;
+      let key = diasSemana[date.getDay()];
+      if (period === 'month' || period === 'year' || period === 'all') {
+         // Format differently for larger periods (e.g. DD/MM)
+         key = `${date.getDate()}/${date.getMonth() + 1}`;
+      }
+      produccionPorDia[key] = (produccionPorDia[key] || 0) + p.cantidady;
     }
 
     return {

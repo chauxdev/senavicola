@@ -4,6 +4,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -19,6 +20,9 @@ async function bootstrap() {
   const express = require('express');
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Cookie parser
+  app.use(cookieParser());
 
   // Validación global de DTOs
   app.useGlobalPipes(
@@ -40,7 +44,7 @@ async function bootstrap() {
 
   // CORS configurable (dinámico para permitir desarrollo local sin fricciones)
   app.enableCors({
-    origin: true,
+    origin: 'http://localhost:4200',
     credentials: true,
   });
 

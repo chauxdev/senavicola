@@ -20,7 +20,8 @@ export class CreateSupplyDto {
 
   @IsInt()
   @IsPositive()
-  id_llamar_usuario!: number;
+  @IsOptional()
+  id_llamar_usuario?: number;
 
   @IsString()
   @IsNotEmpty()

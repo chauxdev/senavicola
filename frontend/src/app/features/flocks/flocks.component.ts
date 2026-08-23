@@ -137,7 +137,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                             <i class="fas fa-edit"></i>
                           </button>
                           @if (flock.estado === 'ACTIVO' || flock.estado === 'activo') {
-                            <button class="btn-icon" style="color:#e74c3c;border-color:#e74c3c" title="Registrar Aves Muertas" (click)="openDeadBirdsModal(flock)">
+                            <button class="btn-icon delete" title="Registrar Aves Muertas" (click)="openDeadBirdsModal(flock)">
                               <i class="fas fa-skull-crossbones"></i>
                             </button>
                             <button class="btn-icon view" title="Finalizar Lote" (click)="finalizeFlock(flock)">
@@ -184,7 +184,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th style="width: 60px;">#</th><th>Código</th><th>Nombre</th><th>Capacidad</th><th>Área (m²)</th><th>Unidad</th>
+                    <th style="width: 60px;">#</th><th>Código</th><th>Nombre</th><th>Aves Actuales</th><th>Capacidad Máx.</th><th>Área (m²)</th><th>Unidad</th>
                     @if (permissions.canWrite()) {
                       <th style="text-align: right; width: 120px;">Acciones</th>
                     }
@@ -196,6 +196,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
                       <td><strong>{{ (barnsPage - 1) * barnsLimit + idx + 1 }}</strong></td>
                       <td>{{ barn.codigo }}</td>
                       <td><strong>{{ barn.nombre }}</strong></td>
+                      <td>{{ barn.total_aves_actuales || 0 }}</td>
                       <td>{{ barn.capacidad_max_aves || '—' }}</td>
                       <td>{{ barn.area || '—' }} m²</td>
                       <td>{{ barn.unidadMedida?.nombre || '—' }}</td>
@@ -592,15 +593,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
       font-family: 'Work Sans', sans-serif;
       &.active { background: var(--primary-green); color: white; border-color: var(--primary-green); }
     }
-    .table-responsive { overflow-x: auto; }
-    .data-table {
-      width: 100%; border-collapse: collapse;
-      th { padding: 1.2rem 1.5rem; background: var(--gray-light); font-size: 1.2rem; font-weight: 600; text-transform: uppercase; color: var(--gray-dark); text-align: left; }
-      td { padding: 1.2rem 1.5rem; border-top: 1px solid var(--gray-medium); font-size: 1.4rem; }
-      tr:hover td { background: rgba(57,169,0,0.03); }
-    }
-    .actions-cell { display: flex; gap: 0.5rem; }
-    .btn-close { background: none; border: none; font-size: 2rem; color: var(--gray-dark); cursor: pointer; padding: 0.3rem; border-radius: 6px; &:hover { background: var(--gray-light); } }
+    
     .spinner-sm { width: 1.6rem; height: 1.6rem; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .modal-wide { max-width: 860px; width: 95vw; }
@@ -1036,8 +1029,8 @@ export class FlocksComponent implements OnInit {
     const flock = this.selectedFlock();
     if (!flock || this.deadBirdsForm.invalid) return;
     this.savingDeadBirds.set(true);
-    const data = { id_lote: flock.id_lote, ...this.deadBirdsForm.value };
-    this.flocksService.registerDeadBirds(data as unknown as { id_lote: string; cantidad: number; fecha?: string; motivo?: string }).subscribe({
+    const data = { loteId: flock.id_lote, ...this.deadBirdsForm.value };
+    this.flocksService.registerDeadBirds(data as unknown as { loteId: string; cantidad: number; fecha?: string; motivo?: string }).subscribe({
       next: () => {
         this.toast.success('Registro de aves muertas guardado');
         this.closeModals();

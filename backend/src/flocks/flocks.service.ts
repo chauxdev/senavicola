@@ -221,14 +221,19 @@ export class FlocksService {
       }
     }
 
-    // ── Barn capacity validation on edit (only when total_aves changes) ───────
-    if (dto.total_aves !== undefined && dto.total_aves !== flock.total_aves) {
-      const currentGalponId = flock.ubicacion?.[0]?.galpon?.id_galpon;
-      if (currentGalponId) {
-        const galpon = await this.barnRepo.findOneBy({ id_galpon: currentGalponId });
+    // ── Barn capacity validation on edit ───────
+    const targetGalponId = dto.galponId || flock.ubicacion?.[0]?.galpon?.id_galpon;
+    const targetAves = dto.total_aves !== undefined ? dto.total_aves : flock.total_aves;
+
+    if (targetGalponId) {
+      const isChangingBarn = dto.galponId && dto.galponId !== flock.ubicacion?.[0]?.galpon?.id_galpon;
+      const isChangingAves = dto.total_aves !== undefined && dto.total_aves !== flock.total_aves;
+
+      if (isChangingBarn || isChangingAves) {
+        const galpon = await this.barnRepo.findOneBy({ id_galpon: targetGalponId });
         if (galpon) {
-          const occupancyWithoutThisFlock = await this.getBarnOccupancy(currentGalponId, id);
-          const projectedTotal = occupancyWithoutThisFlock + dto.total_aves;
+          const occupancyWithoutThisFlock = await this.getBarnOccupancy(targetGalponId, id);
+          const projectedTotal = occupancyWithoutThisFlock + targetAves;
           if (projectedTotal > galpon.capacidad_max_aves) {
             const available = galpon.capacidad_max_aves - occupancyWithoutThisFlock;
             throw new BadRequestException(
@@ -236,7 +241,7 @@ export class FlocksService {
               `Capacidad máxima: ${galpon.capacidad_max_aves} aves. ` +
               `Ocupado por otros lotes: ${occupancyWithoutThisFlock} aves. ` +
               `Disponible: ${available > 0 ? available : 0} aves. ` +
-              `Solicitado: ${dto.total_aves} aves.`
+              `Solicitado: ${targetAves} aves.`
             );
           }
         }

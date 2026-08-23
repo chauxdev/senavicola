@@ -12,11 +12,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
   const accessDenied = inject(AccessDeniedService);
 
-  const token = authService.getToken();
-
-  const authReq = token
-    ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-    : req;
+  const authReq = req.clone({
+    withCredentials: true
+  });
 
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {

@@ -9,6 +9,7 @@ import {
   extractPermissionsFromUser,
   extractRoleNamesFromUser,
 } from '../rbac.util';
+import { Request } from 'express';
 
 export interface JwtPayload {
   sub: string; // id_usuario (UUID)
@@ -28,15 +29,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!secret) throw new Error('JWT_SECRET no está definido en .env');
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (request: Request) => {
+          return request?.cookies?.access_token || null;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: secret,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<Partial<User> & { roles: string[]; permissions: string[] }> {
+  async validate(
+    payload: JwtPayload,
+  ): Promise<Partial<User> & { roles: string[]; permissions: string[] }> {
     if (payload.sub === 'guest') {
-      const authorization = await this.rbacService.loadRoleAuthorization('visitante');
+      const authorization =
+        await this.rbacService.loadRoleAuthorization('visitante');
       return {
         id_usuario: 'guest',
         nombre: 'Invitado',

@@ -83,6 +83,7 @@ export interface Barn {
   unidadMedida?: MeasurementUnit;
   createdAt?: string;
   updatedAt?: string;
+  total_aves_actuales?: number;
 }
 
 // ===== FLOCK MODEL =====

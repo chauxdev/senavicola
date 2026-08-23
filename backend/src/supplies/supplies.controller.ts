@@ -27,7 +27,7 @@ export class SuppliesController {
   @RequirePermission('INSUMOS_CREAR')
   create(@Body() dto: CreateSupplyDto, @GetUser() user: any) {
     const userDisplayName = user ? `${user.nombre} ${user.apellido || ''}`.trim() : 'Sistema';
-    return this.suppliesService.create(dto, userDisplayName);
+    return this.suppliesService.create(dto, userDisplayName, user);
   }
 
   @Get()
