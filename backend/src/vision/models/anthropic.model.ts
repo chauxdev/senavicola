@@ -13,10 +13,29 @@ export class AnthropicVisionModel implements VisionModelProvider {
   async predict(frameBase64: string, calibration: any): Promise<VisionResult> {
     if (!this.isAvailable()) throw new Error('Anthropic no configurado');
     
+    const promptText = `Actúa como un sistema de visión artificial especializado en metrología y OCR. Analiza la imagen proporcionada, que contiene una báscula con pantalla LCD de 7 segmentos y un huevo sobre ella, con una cuadrícula de referencia (5x5mm por cuadro) visible.
+Debes:
+1. Detectar el peso mostrado en la pantalla LCD de la gramera en gramos.
+2. Identificar el huevo y usar la cuadrícula de referencia para estimar sus dimensiones físicas reales: longitud (mm), ancho (mm) y área proyectada (mm2).
+3. Estimar el volumen (cm3) asumiendo una aproximación geométrica de elipsoide (donde el alto es igual al ancho).
+4. Asignar una clasificación: Jumbo (>78g), AAA (>=67g), AA (>=60g), A (>=53g), B (>=46g), C (<46g).
+Devuelve el resultado ESTRICTAMENTE en formato JSON con la siguiente estructura, sin comillas invertidas (backticks) ni texto markdown ni explicaciones adicionales:
+{
+  "peso_g": 0.0,
+  "longitud_mm": 0.0,
+  "ancho_mm": 0.0,
+  "alto_estimado_mm": 0.0,
+  "area_mm2": 0.0,
+  "volumen_estimado_cm3": 0.0,
+  "categoria": "AAA",
+  "confianza_peso": 0.98,
+  "confianza_huevo": 0.95
+}`;
+
     const apiKey = process.env.API_ANTHROPIC || '';
     const body = {
-      model: "claude-3-5-sonnet-20240620",
-      max_tokens: 50,
+      model: "claude-sonnet-4-6",
+      max_tokens: 300,
       temperature: 0.1,
       messages: [
         {
@@ -26,7 +45,7 @@ export class AnthropicVisionModel implements VisionModelProvider {
               type: "image",
               source: { type: "base64", media_type: "image/jpeg", data: frameBase64 }
             },
-            { type: "text", text: "Look at the digital scale display in this image. Return just the numeric value displayed on the screen. Do not include units like 'g' or 'kg', just the raw number. If you cannot see a clear number, return nothing." }
+            { type: "text", text: promptText }
           ]
         }
       ]
@@ -46,13 +65,29 @@ export class AnthropicVisionModel implements VisionModelProvider {
     if (result.error) throw new Error(result.error.message);
 
     const detected = result.content[0].text.trim();
-    const parsed = parseFloat(detected.replace(/[^0-9.]/g, ''));
+    
+    let parsedData: any = {};
+    let weight: number | undefined = undefined;
+    
+    try {
+      // Clean up potential markdown from Anthropic response just in case
+      let cleanJson = detected;
+      if (cleanJson.startsWith('```json')) cleanJson = cleanJson.replace('```json', '');
+      if (cleanJson.startsWith('```')) cleanJson = cleanJson.replace('```', '');
+      cleanJson = cleanJson.replace(/```$/, '').trim();
+      
+      parsedData = JSON.parse(cleanJson);
+      weight = parsedData.peso_g;
+    } catch (e) {
+      console.error('Error parsing JSON from Anthropic', e);
+    }
 
     return {
       success: true,
       model: this.id,
       detected,
-      weight: isNaN(parsed) ? undefined : parsed
+      weight: (weight === undefined || isNaN(weight)) ? undefined : weight,
+      metadata: parsedData
     };
   }
 }
