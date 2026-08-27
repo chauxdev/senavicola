@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { OpenAIVisionModel } from './models/openai.model';
 import { AnthropicVisionModel } from './models/anthropic.model';
 import { PythonVisionModel } from './models/python.model';
-import { YoloVisionModel } from './models/yolo.model';
 import { VisionModelProvider, VisionResult } from './interfaces/vision-model.interface';
 
 @Injectable()
@@ -12,11 +11,9 @@ export class VisionService {
   constructor(
     private openai: OpenAIVisionModel,
     private anthropic: AnthropicVisionModel,
-    private python: PythonVisionModel,
-    private yolo: YoloVisionModel
+    private python: PythonVisionModel
   ) {
     this.models.set(this.python.id, this.python);
-    this.models.set(this.yolo.id, this.yolo);
     this.models.set(this.openai.id, this.openai);
     this.models.set(this.anthropic.id, this.anthropic);
   }

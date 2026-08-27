@@ -4,10 +4,9 @@ import { VisionService } from './vision.service';
 import { OpenAIVisionModel } from './models/openai.model';
 import { AnthropicVisionModel } from './models/anthropic.model';
 import { PythonVisionModel } from './models/python.model';
-import { YoloVisionModel } from './models/yolo.model';
 
 @Module({
   controllers: [VisionController],
-  providers: [VisionService, OpenAIVisionModel, AnthropicVisionModel, PythonVisionModel, YoloVisionModel],
+  providers: [VisionService, OpenAIVisionModel, AnthropicVisionModel, PythonVisionModel],
 })
 export class VisionModule {}

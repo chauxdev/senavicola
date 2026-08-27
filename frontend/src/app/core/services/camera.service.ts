@@ -78,12 +78,28 @@ export class CameraService {
   getFrameBase64(): string {
     if (!this.videoElement || !this.stream) throw new Error('Cámara no inicializada');
     const canvas = document.createElement('canvas');
-    // Using actual video resolution
-    canvas.width = this.videoElement.videoWidth || 640;
-    canvas.height = this.videoElement.videoHeight || 480;
+    let width = this.videoElement.videoWidth || 640;
+    let height = this.videoElement.videoHeight || 480;
+
+    // Optimización de resolución para reducir latencia (Máximo 800px)
+    const MAX_DIM = 800;
+    if (width > MAX_DIM || height > MAX_DIM) {
+      if (width > height) {
+        height = Math.round((height * MAX_DIM) / width);
+        width = MAX_DIM;
+      } else {
+        width = Math.round((width * MAX_DIM) / height);
+        height = MAX_DIM;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('No se pudo obtener el contexto 2D');
-    ctx.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.8).replace(/^data:image\/jpeg;base64,/, '');
+    ctx.drawImage(this.videoElement, 0, 0, width, height);
+    
+    // Reducir calidad a 70% para aligerar la carga de red (base64)
+    return canvas.toDataURL('image/jpeg', 0.7).replace(/^data:image\/jpeg;base64,/, '');
   }
 }
