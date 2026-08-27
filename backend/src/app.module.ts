@@ -47,7 +47,7 @@ import { validateEnv } from './config/env.validation';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: true,
         logging: configService.get<string>('NODE_ENV') === 'development',
       }),
     }),
