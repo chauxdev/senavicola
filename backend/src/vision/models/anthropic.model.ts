@@ -51,6 +51,7 @@ Devuelve el resultado ESTRICTAMENTE en formato JSON con la siguiente estructura,
       ]
     };
 
+    const startTime = Date.now();
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -78,6 +79,21 @@ Devuelve el resultado ESTRICTAMENTE en formato JSON con la siguiente estructura,
       
       parsedData = JSON.parse(cleanJson);
       weight = parsedData.peso_g;
+      
+      if (result.usage) {
+        const inputTokens = result.usage.input_tokens || 0;
+        const outputTokens = result.usage.output_tokens || 0;
+        // Costo para Claude 3.5 Sonnet: $3.00/1M input, $15.00/1M output
+        const costUSD = (inputTokens / 1_000_000) * 3.0 + (outputTokens / 1_000_000) * 15.0;
+
+        parsedData.token_metrics = {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          total_tokens: inputTokens + outputTokens,
+          tiempo_procesamiento_ms: Date.now() - startTime,
+          costo_estimado_usd: Number(costUSD.toFixed(6))
+        };
+      }
     } catch (e) {
       console.error('Error parsing JSON from Anthropic', e);
     }

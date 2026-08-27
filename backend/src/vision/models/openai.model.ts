@@ -44,11 +44,12 @@ Devuelve el resultado ESTRICTAMENTE en formato JSON con la siguiente estructura,
           ]
         }
       ],
-      max_completion_tokens: 300,
+      max_completion_tokens: 1500,
       temperature: 1,
       response_format: { type: "json_object" }
     };
 
+    const startTime = Date.now();
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -58,7 +59,12 @@ Devuelve el resultado ESTRICTAMENTE en formato JSON con la siguiente estructura,
     const result = await response.json();
     if (result.error) throw new Error(result.error.message);
 
-    const detected = result.choices[0].message.content.trim();
+    const finishReason = result.choices[0]?.finish_reason;
+    const detected = (result.choices[0]?.message?.content || '').trim();
+    
+    if (!detected) {
+      throw new Error(`OpenAI no devolvió contenido. finish_reason: ${finishReason}`);
+    }
     
     let parsedData: any = {};
     let weight: number | undefined = undefined;
@@ -66,6 +72,21 @@ Devuelve el resultado ESTRICTAMENTE en formato JSON con la siguiente estructura,
     try {
       parsedData = JSON.parse(detected);
       weight = parsedData.peso_g;
+
+      if (result.usage) {
+        const inputTokens = result.usage.prompt_tokens;
+        const outputTokens = result.usage.completion_tokens;
+        // Asumimos tarifa promedio de modelos de razonamiento (ej: $3.00/1M input, $15.00/1M output)
+        const costUSD = (inputTokens / 1_000_000) * 3.0 + (outputTokens / 1_000_000) * 15.0;
+
+        parsedData.token_metrics = {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          total_tokens: result.usage.total_tokens,
+          tiempo_procesamiento_ms: Date.now() - startTime,
+          costo_estimado_usd: Number(costUSD.toFixed(6))
+        };
+      }
     } catch (e) {
       console.error('Error parsing JSON from OpenAI', e);
     }
