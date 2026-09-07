@@ -19,6 +19,7 @@ export interface VisionResult {
   weight?: number;
   confidence?: number;
   message?: string;
+  metadata?: any;
 }
 
 @Injectable({ providedIn: 'root' })

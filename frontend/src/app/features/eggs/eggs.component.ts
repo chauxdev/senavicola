@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal, computed, ViewChild, ElementRef } from '@angular/core';
+import { Component, inject, OnInit, signal, computed, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -176,7 +176,26 @@ import { VisionApiService, VisionModelInfo } from '../../core/services/vision.se
 
               <!-- Camera Screen -->
               <div class="camera-screen" style="position: relative; aspect-ratio: 16/9; background: #0f172a; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: white;">
-                <video #cameraVideo playsinline style="width: 100%; height: 100%; object-fit: contain;" [style.display]="cameraStatus() === 'conectado' ? 'block' : 'none'"></video>
+                <video #cameraVideo (click)="onVideoClick($event)" playsinline style="width: 100%; height: 100%; object-fit: contain; cursor: crosshair;" [style.display]="cameraStatus() === 'conectado' ? 'block' : 'none'" [style.transform]="(cameraService.currentCalibration.rotation === 180 ? 'rotate(180deg) ' : '') + (cameraService.currentCalibration.flip ? 'scaleX(-1)' : '')"></video>
+                
+                @if (cameraStatus() === 'conectado' && realtimeData()?.contorno) {
+                  <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;" [attr.viewBox]="getViewBox()" preserveAspectRatio="xMidYMid meet">
+                    <polygon [attr.points]="getContourPoints()" fill="rgba(76, 175, 80, 0.3)" stroke="#4caf50" stroke-width="3"/>
+                  </svg>
+                }
+                
+                @if (isCalibratingVolume()) {
+                  <div style="position: absolute; top: 0; left: 0; right: 0; background: rgba(0,0,0,0.8); color: white; padding: 1rem; z-index: 60; text-align: center;">
+                    <h3 style="margin: 0 0 0.5rem 0; color: #ffeb3b;">Modo Calibración de Volumen</h3>
+                    <p style="margin: 0; font-size: 1.1rem;">Haz clic en 2 puntos separados por exactamente <strong>{{ volumeCalibDist() }} cm</strong> en el video.</p>
+                    <p style="margin: 0.5rem 0 0 0; color: #4caf50;">Puntos marcados: {{ volumeCalibPoints().length }} / 2</p>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center;">
+                      <label>Distancia real (cm):</label>
+                      <input type="number" step="0.5" min="1" [(ngModel)]="volumeCalibDist" style="width: 80px; padding: 0.5rem; color: black; border-radius: 4px;" />
+                      <button class="btn-secondary" (click)="isCalibratingVolume.set(false); volumeCalibPoints.set([])" style="padding: 0.5rem 1rem;">Cancelar</button>
+                    </div>
+                  </div>
+                }
                 
                 @if (cameraStatus() !== 'conectado') {
                   <div style="text-align: center;">
@@ -185,17 +204,32 @@ import { VisionApiService, VisionModelInfo } from '../../core/services/vision.se
                   </div>
                 }
 
-                @if (cameraStatus() === 'conectado' && isCalibrating()) {
-                  <div style="position: absolute; border: 2px dashed #ffeb3b; background: rgba(255, 235, 59, 0.2); cursor: move; display: flex; align-items: center; justify-content: center; color: #ffeb3b; font-weight: bold; text-shadow: 1px 1px 2px black;" 
+                @if (cameraStatus() === 'conectado' && cameraService.currentCalibration.roi) {
+                  <div style="position: absolute; z-index: 50; border: 2px dashed #ffeb3b; display: flex; align-items: center; justify-content: center; color: #ffeb3b; font-weight: bold; text-shadow: 1px 1px 2px black; pointer-events: none;" 
+                    [style.background]="isCalibrating() ? 'rgba(255, 235, 59, 0.2)' : 'transparent'"
                     [style.left.px]="cameraService.currentCalibration.roi.x"
                     [style.top.px]="cameraService.currentCalibration.roi.y"
                     [style.width.px]="cameraService.currentCalibration.roi.width"
                     [style.height.px]="cameraService.currentCalibration.roi.height">
-                    ROI
+                    ROI DISPLAY
                   </div>
                 }
 
-                @if (isPredicting()) {
+                @if (cameraStatus() === 'conectado' && realtimeData()) {
+                  <div style="position: absolute; top: 1rem; left: 1rem; background: rgba(0,0,0,0.7); padding: 1rem; border-radius: 8px; color: #fff; font-family: monospace; font-size: 1.2rem; z-index: 10;">
+                    <div style="font-size: 1.6rem; font-weight: bold; color: #4caf50; margin-bottom: 0.5rem;">
+                      <i class="fas fa-balance-scale"></i> Peso: {{ realtimeWeight() }}
+                    </div>
+                    <div style="color: #64b5f6;">
+                      <i class="fas fa-cube"></i> Vol: {{ realtimeData()?.volumen_elipsoide_cm3 || 0 }} cm³
+                    </div>
+                    <div style="color: #ffb74d;">
+                      <i class="fas fa-arrows-alt-h"></i> Ø: {{ realtimeData()?.diametro_cm || 0 }}cm | L: {{ realtimeData()?.largo_cm || 0 }}cm
+                    </div>
+                  </div>
+                }
+
+                @if (isPredicting() && !realtimeInterval) {
                   <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20;">
                     <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: #4caf50; margin-bottom: 1rem;"></i>
                     <span style="font-weight: 600;">Analizando imagen...</span>
@@ -230,6 +264,42 @@ import { VisionApiService, VisionModelInfo } from '../../core/services/vision.se
                         <span style="font-weight: bold; font-size: 1.3rem;">{{ cameraService.currentCalibration.cameraHeight }} cm</span>
                       </div>
                     </div>
+                    <div style="grid-column: span 2;">
+                      <label style="font-size: 1.2rem; display: block; margin-bottom: 0.5rem;">Orientación de cámara</label>
+                      <div style="display: flex; gap: 1rem;">
+                        <button class="btn-secondary" (click)="cameraService.currentCalibration.rotation = cameraService.currentCalibration.rotation === 180 ? 0 : 180" style="flex: 1; padding: 0.8rem; border-radius: 6px; font-weight: 600;">
+                          <i class="fas fa-sync-alt"></i> {{ cameraService.currentCalibration.rotation === 180 ? 'Volver a Normal' : 'Rotar 180° (Boca abajo)' }}
+                        </button>
+                        <button class="btn-secondary" (click)="cameraService.currentCalibration.flip = !cameraService.currentCalibration.flip" style="flex: 1; padding: 0.8rem; border-radius: 6px; font-weight: 600;">
+                          <i class="fas fa-arrows-alt-h"></i> {{ cameraService.currentCalibration.flip ? 'Quitar Espejo' : 'Modo Espejo' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div style="grid-column: span 2; border-top: 1px solid #ccc; padding-top: 1rem; margin-top: 0.5rem;">
+                      <h6 style="margin: 0 0 1rem 0; font-size: 1.2rem; color: #555;"><i class="fas fa-sliders-h"></i> Ajustes Finos de Lectura</h6>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <div>
+                          <label style="font-size: 1.1rem; display: block; margin-bottom: 0.2rem; font-weight: 600;">Sensibilidad a Reflejos</label>
+                          <small style="display: block; margin-bottom: 0.5rem; color: #666; font-size: 0.9rem;">Súbelo (ej. 45, 55) si hay mucho brillo en la pantalla. (Debe ser impar)</small>
+                          <input type="number" step="2" min="3" [(ngModel)]="cameraService.currentCalibration.block_size" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                        </div>
+                        <div>
+                          <label style="font-size: 1.1rem; display: block; margin-bottom: 0.2rem; font-weight: 600;">Grosor de los Números</label>
+                          <small style="display: block; margin-bottom: 0.5rem; color: #666; font-size: 0.9rem;">Bájalo (ej. 10, 5) si los números se ven rotos o entrecortados.</small>
+                          <input type="number" [(ngModel)]="cameraService.currentCalibration.c_value" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                        </div>
+                        <div>
+                          <label style="font-size: 1.1rem; display: block; margin-bottom: 0.2rem; font-weight: 600;">Claridad de Pantalla</label>
+                          <small style="display: block; margin-bottom: 0.5rem; color: #666; font-size: 0.9rem;">Súbelo si la pantalla se ve muy oscura y no resalta el número.</small>
+                          <input type="number" step="0.5" [(ngModel)]="cameraService.currentCalibration.clahe_clip" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                        </div>
+                        <div>
+                          <label style="font-size: 1.1rem; display: block; margin-bottom: 0.2rem; font-weight: 600;">Inclinación (Cursiva)</label>
+                          <small style="display: block; margin-bottom: 0.5rem; color: #666; font-size: 0.9rem;">Normalmente 0. Úsalo si los números de la báscula están ladeados.</small>
+                          <input type="number" [(ngModel)]="cameraService.currentCalibration.shear_angle" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
                     <button class="btn-green" (click)="saveCalibration()" style="flex: 1; padding: 0.8rem; border-radius: 6px;"><i class="fas fa-save"></i> Guardar</button>
@@ -248,6 +318,9 @@ import { VisionApiService, VisionModelInfo } from '../../core/services/vision.se
                 </button>
                 <button type="button" class="btn-secondary" [disabled]="permissions.isVisitor() || cameraStatus() !== 'conectado'" (click)="isCalibrating.set(!isCalibrating())" style="padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; background: #e2e8f0; border: none;">
                   <i class="fas fa-tools"></i> Calibrar visión
+                </button>
+                <button type="button" class="btn-secondary" [disabled]="permissions.isVisitor() || cameraStatus() !== 'conectado'" (click)="isCalibratingVolume.set(true)" style="padding: 1rem; font-size: 1.3rem; font-weight: 600; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; background: #fff9c4; border: 1px solid #fbc02d; color: #f57f17;">
+                  <i class="fas fa-ruler-combined"></i> Calibrar Volumen
                 </button>
               </div>
             </div>
@@ -284,9 +357,15 @@ import { VisionApiService, VisionModelInfo } from '../../core/services/vision.se
                   <input type="number" [value]="autoQuantity()" (input)="autoQuantity.set($any($event.target).value)" min="1" max="100" />
                 </div>
 
-                <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado' || permissions.isVisitor()" (click)="simulateAutoClassification()" style="width: 100%; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2); justify-content: center;">
-                  <i class="fas fa-camera"></i> Capturar Peso / Clasificar
-                </button>
+                <div style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem;">
+                  <button type="button" class="btn-green" [disabled]="saving() || !selectedAutoLoteId() || cameraStatus() !== 'conectado' || permissions.isVisitor()" (click)="handleCaptureClick()" style="flex: 1; padding: 1.5rem; font-size: 1.5rem; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; box-shadow: 0 4px 6px rgba(57,169,0,0.2);">
+                    <i class="fas fa-camera"></i> {{ timerActive() ? 'Capturando en ' + timerCount() + '...' : 'Capturar Peso / Clasificar' }}
+                  </button>
+                  <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; color: #4b5563; cursor: pointer; background: #f1f5f9; padding: 1.5rem; border-radius: 8px; font-weight: 600;">
+                    <input type="checkbox" [checked]="useTimer()" (change)="toggleTimer()" style="width: 1.4rem; height: 1.4rem; cursor: pointer;" />
+                    <i class="fas fa-clock"></i> 3s Retardo
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -303,7 +382,7 @@ import { VisionApiService, VisionModelInfo } from '../../core/services/vision.se
                     <tr><th style="width: 50px;">#</th><th>Fecha/Hora</th><th>Lote</th><th>Tipo</th><th>Cant.</th></tr>
                   </thead>
                   <tbody>
-                    @for (item of historyItems().slice(0, 5); track item.id_produccion_huevo; let idx = $index) {
+                    @for (item of historyItems().slice(0, 5); track item.id_historial_huevo; let idx = $index) {
                       <tr>
                         <td><strong>{{ idx + 1 }}</strong></td>
                         <td>{{ item.produccionFecha | date:'shortTime' }}</td>
@@ -771,6 +850,32 @@ export class EggsComponent implements OnInit {
   searchQuery = '';
   searchSubject = new Subject<string>();
   
+  getContourPoints(): string {
+    const pts = this.realtimeData()?.contorno;
+    if (!pts || !Array.isArray(pts)) return '';
+    return pts.map((p: any) => `${p[0]},${p[1]}`).join(' ');
+  }
+
+  getViewBox(): string {
+    const video = this.cameraVideo?.nativeElement;
+    if (video && video.videoWidth) {
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+      const MAX_DIM = 640;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        if (width > height) {
+          height = Math.round((height * MAX_DIM) / width);
+          width = MAX_DIM;
+        } else {
+          width = Math.round((width * MAX_DIM) / height);
+          height = MAX_DIM;
+        }
+      }
+      return `0 0 ${width} ${height}`;
+    }
+    return '0 0 640 480';
+  }
+
   // Pagination
   currentPage = 1;
   totalPages = 1;
@@ -1108,16 +1213,141 @@ export class EggsComponent implements OnInit {
     });
   }
 
+  realtimeData = signal<any>(null);
+  realtimeWeight = signal<string | number>('-');
+  realtimeInterval: any;
+  
+  useTimer = signal<boolean>(false);
+  timerActive = signal<boolean>(false);
+  timerCount = signal<number>(3);
+  
+  toggleTimer() {
+    this.useTimer.set(!this.useTimer());
+  }
+
+  @HostListener('window:keydown.space', ['$event'])
+  handleSpacebar(event: Event) {
+    // Only trigger if we are in automatic classification mode and camera is connected
+    if (this.classifTab() === 'automatica' && this.cameraStatus() === 'conectado') {
+      // Prevent scrolling down when pressing spacebar
+      const target = event.target as HTMLElement;
+      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        this.handleCaptureClick();
+      }
+    }
+  }
+
+  handleCaptureClick() {
+    if (this.useTimer()) {
+      this.timerActive.set(true);
+      this.timerCount.set(3);
+      const interval = setInterval(() => {
+        const count = this.timerCount() - 1;
+        this.timerCount.set(count);
+        if (count <= 0) {
+          clearInterval(interval);
+          this.timerActive.set(false);
+          this.simulateAutoClassification();
+        }
+      }, 1000);
+    } else {
+      this.simulateAutoClassification();
+    }
+  }
+
   async toggleCamera(forceRestart = false) {
     if (this.cameraStatus() === 'conectado' && !forceRestart) {
       this.cameraService.stopCamera();
+      this.stopRealtime();
     } else {
       try {
         await this.cameraService.initializeCamera(this.selectedCamera(), this.cameraVideo.nativeElement);
+        this.startRealtime();
       } catch (err: any) {
         this.toast.error(err.message);
       }
     }
+  }
+
+  private getScaledCalibration(frameWidth: number, frameHeight: number) {
+    const videoElement = this.cameraVideo.nativeElement;
+    const baseCalibration = this.cameraService.currentCalibration;
+
+    if (!videoElement.videoWidth) return baseCalibration;
+
+    const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+    const elementRatio = videoElement.clientWidth / videoElement.clientHeight;
+    
+    let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0;
+    if (videoRatio > elementRatio) {
+      renderedWidth = videoElement.clientWidth;
+      renderedHeight = renderedWidth / videoRatio;
+      offsetY = (videoElement.clientHeight - renderedHeight) / 2;
+    } else {
+      renderedHeight = videoElement.clientHeight;
+      renderedWidth = renderedHeight * videoRatio;
+      offsetX = (videoElement.clientWidth - renderedWidth) / 2;
+    }
+
+    const realRoiX = baseCalibration.roi.x - offsetX;
+    const realRoiY = baseCalibration.roi.y - offsetY;
+
+    const scaleX = frameWidth / renderedWidth;
+    const scaleY = frameHeight / renderedHeight;
+    
+    return {
+      cameraHeight: baseCalibration.cameraHeight,
+      block_size: baseCalibration.block_size,
+      c_value: baseCalibration.c_value,
+      clahe_clip: baseCalibration.clahe_clip,
+      shear_angle: baseCalibration.shear_angle,
+      roi: {
+        x: Math.max(0, realRoiX * scaleX),
+        y: Math.max(0, realRoiY * scaleY),
+        width: baseCalibration.roi.width * scaleX,
+        height: baseCalibration.roi.height * scaleY
+      }
+    };
+  }
+
+  private startRealtime() {
+    this.stopRealtime();
+    this.realtimeInterval = setInterval(() => {
+      // Si la cámara no está conectada o estamos guardando un registro, no consultar
+      if (this.cameraStatus() !== 'conectado' || this.isPredicting()) return;
+      if (this.classifTab() !== 'automatica') return;
+
+      try {
+        const frameInfo = this.cameraService.getFrameInfo();
+        const scaledCalib = this.getScaledCalibration(frameInfo.width, frameInfo.height);
+        
+        this.visionService.predict(this.selectedModelId(), frameInfo.base64, scaledCalib).subscribe({
+          next: (res) => {
+            if (res.success) {
+              // SOLO actualizamos la interfaz para que el usuario vea los datos en tiempo real
+              this.realtimeWeight.set(res.detected);
+              if (res.metadata) {
+                this.realtimeData.set(res.metadata);
+              }
+            }
+          },
+          error: () => {
+            // Ignoramos errores para no saturar de notificaciones en tiempo real
+          }
+        });
+      } catch (e) {
+        // Ignorar errores de captura
+      }
+    }, 800); // 800ms para que sea rápido pero no sature tanto
+  }
+
+  private stopRealtime() {
+    if (this.realtimeInterval) {
+      clearInterval(this.realtimeInterval);
+      this.realtimeInterval = null;
+    }
+    // No borramos la data al detener la cámara para que el último peso capturado quede visible
   }
 
   saveCalibration() {
@@ -1144,14 +1374,21 @@ export class EggsComponent implements OnInit {
 
     try {
       this.isPredicting.set(true);
-      const frameBase64 = this.cameraService.getFrameBase64();
+      const frameInfo = this.cameraService.getFrameInfo();
+      const scaledCalib = this.getScaledCalibration(frameInfo.width, frameInfo.height);
       
-      this.visionService.predict(this.selectedModelId(), frameBase64, this.cameraService.currentCalibration).subscribe({
+      this.visionService.predict(this.selectedModelId(), frameInfo.base64, scaledCalib).subscribe({
         next: (res) => {
           this.isPredicting.set(false);
           if (!res.success) {
             this.toast.error(res.message || 'Error en la predicción');
             return;
+          }
+
+          // Actualizar el panel en vivo
+          this.realtimeWeight.set(res.detected);
+          if (res.metadata) {
+            this.realtimeData.set(res.metadata);
           }
           
           if (res.weight) {
@@ -1207,6 +1444,89 @@ export class EggsComponent implements OnInit {
       error: () => this.toast.error('Error al registrar la clasificación automática'),
       complete: () => this.saving.set(false),
     });
+  }
+
+  isCalibratingVolume = signal(false);
+  volumeCalibPoints = signal<{x: number, y: number}[]>([]);
+  volumeCalibDist = signal<number>(5.0);
+
+  onVideoClick(event: MouseEvent) {
+    if (!this.isCalibratingVolume()) return;
+
+    const video = this.cameraVideo?.nativeElement;
+    if (!video) return;
+
+    const rect = video.getBoundingClientRect();
+    
+    // Calculate actual displayed video dimensions (handling object-fit: contain)
+    const videoRatio = video.videoWidth / video.videoHeight;
+    const elementRatio = rect.width / rect.height;
+    
+    let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
+    if (elementRatio > videoRatio) {
+      displayHeight = rect.height;
+      displayWidth = rect.height * videoRatio;
+      offsetX = (rect.width - displayWidth) / 2;
+    } else {
+      displayWidth = rect.width;
+      displayHeight = rect.width / videoRatio;
+      offsetY = (rect.height - displayHeight) / 2;
+    }
+
+    // Click relative to the displayed video
+    let clickX = event.clientX - rect.left - offsetX;
+    let clickY = event.clientY - rect.top - offsetY;
+
+    // Backend scaling logic (matches camera.service.ts)
+    let scaledWidth = video.videoWidth;
+    let scaledHeight = video.videoHeight;
+    const MAX_DIM = 640;
+    if (scaledWidth > MAX_DIM || scaledHeight > MAX_DIM) {
+      if (scaledWidth > scaledHeight) {
+        scaledHeight = Math.round((scaledHeight * MAX_DIM) / scaledWidth);
+        scaledWidth = MAX_DIM;
+      } else {
+        scaledWidth = Math.round((scaledWidth * MAX_DIM) / scaledHeight);
+        scaledHeight = MAX_DIM;
+      }
+    }
+
+    // Map click from display size to backend scaled size
+    const pointX = (clickX / displayWidth) * scaledWidth;
+    const pointY = (clickY / displayHeight) * scaledHeight;
+
+    this.volumeCalibPoints.update(pts => {
+      const newPts = [...pts, {x: pointX, y: pointY}];
+      if (newPts.length === 2) {
+        this.submitVolumeCalibration(newPts);
+      }
+      return newPts;
+    });
+  }
+
+  async submitVolumeCalibration(pts: {x: number, y: number}[]) {
+    try {
+      const hostname = window.location.hostname;
+      const res = await fetch(`http://${hostname}:8020/calibrar-escala`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          punto1: [pts[0].x, pts[0].y],
+          punto2: [pts[1].x, pts[1].y],
+          distancia_cm: this.volumeCalibDist()
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        this.toast.success(`Escala calibrada: ${data.px_por_cm} px/cm`);
+        this.isCalibratingVolume.set(false);
+      } else {
+        this.toast.error(data.error || 'Error al calibrar');
+      }
+    } catch (e) {
+      this.toast.error('Error al conectar con visión-volumen');
+    }
+    this.volumeCalibPoints.set([]);
   }
 
 }

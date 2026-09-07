@@ -40,5 +40,25 @@ services:
       db:
         condition: service_healthy
 
+  vision-peso:
+    build: ../Modelo-peso/modelo
+    container_name: senavicola_vision_peso
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  vision-volumen:
+    build: ../modelo-volumen
+    container_name: senavicola_vision_volumen
+    restart: always
+    ports:
+      - "8020:8020"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../modelo-volumen:/app
+
 volumes:
   pgdata:

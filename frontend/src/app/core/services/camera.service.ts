@@ -4,6 +4,12 @@ import { Subject } from 'rxjs';
 export interface CameraCalibration {
   roi: { x: number; y: number; width: number; height: number };
   cameraHeight: number;
+  rotation?: number;
+  flip?: boolean;
+  block_size?: number;
+  c_value?: number;
+  clahe_clip?: number;
+  shear_angle?: number;
 }
 
 export type CameraStatus = 'conectado' | 'desconectado' | 'error';
@@ -19,7 +25,14 @@ export class CameraService {
   loadCalibration(): CameraCalibration {
     const saved = localStorage.getItem('senavicola_camera_calib');
     if (saved) return JSON.parse(saved);
-    return { roi: { x: 50, y: 50, width: 200, height: 100 }, cameraHeight: 45 };
+    return { 
+      roi: { x: 213, y: 348, width: 71, height: 52 },
+      cameraHeight: 45,
+      block_size: 35,
+      c_value: 15,
+      clahe_clip: 3.0,
+      shear_angle: 0
+    };
   }
 
   saveCalibration(calib: CameraCalibration) {
@@ -75,7 +88,7 @@ export class CameraService {
     this.cameraStatus.next('desconectado');
   }
 
-  getFrameBase64(): string {
+  getFrameInfo(): { base64: string; width: number; height: number } {
     if (!this.videoElement || !this.stream) throw new Error('Cámara no inicializada');
     const canvas = document.createElement('canvas');
     let width = this.videoElement.videoWidth || 640;
@@ -97,9 +110,33 @@ export class CameraService {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('No se pudo obtener el contexto 2D');
-    ctx.drawImage(this.videoElement, 0, 0, width, height);
     
-    // Reducir calidad a 70% para aligerar la carga de red (base64)
-    return canvas.toDataURL('image/jpeg', 0.7).replace(/^data:image\/jpeg;base64,/, '');
+    ctx.save();
+    
+    // Configurar transformaciones desde el centro
+    ctx.translate(width / 2, height / 2);
+    
+    if (this.currentCalibration.rotation === 180) {
+      ctx.rotate(Math.PI);
+    }
+    
+    if (this.currentCalibration.flip) {
+      ctx.scale(-1, 1);
+    }
+    
+    // Dibujar la imagen centrada
+    ctx.drawImage(this.videoElement, -width / 2, -height / 2, width, height);
+    ctx.restore();
+    
+    // Use PNG to avoid chroma subsampling artifacts that ruin green digit segmentation
+    return {
+      base64: canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, ''),
+      width: width,
+      height: height
+    };
+  }
+
+  getFrameBase64(): string {
+    return this.getFrameInfo().base64;
   }
 }
