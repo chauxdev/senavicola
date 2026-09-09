@@ -1,5 +1,6 @@
 import { Directive, Input, TemplateRef, ViewContainerRef, effect } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
+import { isAdminUser } from '../../core/utils/rbac.util';
 
 @Directive({
   selector: '[appHasPermission]',
@@ -28,9 +29,7 @@ export class HasPermissionDirective {
   private updateView() {
     const user = this.authService.currentUser();
     const hasPerm = user?.permissions?.includes(this.permission);
-    
-    // Si tiene el rol ADMINISTRADOR, siempre tiene permiso
-    const isAdmin = user?.roles?.includes('ADMINISTRADOR');
+    const isAdmin = isAdminUser(user);
 
     if (hasPerm || isAdmin) {
       if (this.viewContainer.length === 0) {

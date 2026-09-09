@@ -10,6 +10,8 @@ import { EggHistory } from './entities/egg-history.entity';
 
 import { RegisterEggProductionDto } from './dto/register-egg-production.dto';
 import { RegisterDamagedEggsDto } from './dto/register-damaged-eggs.dto';
+import { UpdateEggInventoryDto } from './dto/update-egg-inventory.dto';
+import { EggFilterDto } from './dto/egg-filter.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
@@ -86,6 +88,7 @@ export class EggInventoryService {
       throw new BadRequestException('La cantidad dañada no puede ser mayor al inventario disponible');
     }
 
+    const cantidadAnterior = inventory.cantidad;
     inventory.cantidad -= dto.cantidad;
     await this.inventoryRepo.save(inventory);
 
@@ -96,6 +99,16 @@ export class EggInventoryService {
     });
     const savedDamaged = await this.damagedRepo.save(damaged);
 
+    // Write egg history entry
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        inventario: inventory,
+        cantidad: dto.cantidad,
+        cantidadAnterior,
+        tipoMovimiento: 'Huevos Dañados',
+      })
+    );
+
     this.logger.warn(`Huevos dañados registrados: ${dto.cantidad} unidades`);
 
     return {
@@ -104,10 +117,12 @@ export class EggInventoryService {
     };
   }
 
-  async findAll(paginationDto: PaginationDto) {
+  async findAll(paginationDto: EggFilterDto) {
     const qb = this.inventoryRepo.createQueryBuilder('inv')
       .leftJoinAndSelect('inv.tipo_huevo', 'tipo')
       .leftJoinAndSelect('inv.lote', 'lote')
+      .leftJoinAndSelect('lote.ubicacion', 'ubicacion')
+      .leftJoinAndSelect('ubicacion.galpon', 'galpon')
       .leftJoinAndSelect('inv.produccion', 'produccion')
       .leftJoinAndSelect('inv.damagedEggs', 'damagedEggs');
 
@@ -116,10 +131,38 @@ export class EggInventoryService {
       qb.andWhere('(tipo.tipo ILIKE :search OR lote.nombre ILIKE :search)', { search: s });
     }
 
+    if (paginationDto.tipo && paginationDto.tipo !== 'todos') {
+      qb.andWhere('tipo.tipo = :tipo', { tipo: paginationDto.tipo });
+    }
+
     const paginatedResult = await paginateAndRespond(qb, paginationDto);
 
     return {
       message: 'Inventario de huevos obtenido',
+      ...paginatedResult,
+    };
+  }
+
+  async findDamaged(paginationDto: EggFilterDto) {
+    const qb = this.damagedRepo.createQueryBuilder('damaged')
+      .leftJoinAndSelect('damaged.inventario', 'inventario')
+      .leftJoinAndSelect('inventario.tipo_huevo', 'tipo')
+      .leftJoinAndSelect('inventario.lote', 'lote')
+      .orderBy('damaged.registeredAt', 'DESC');
+
+    if (paginationDto.search) {
+      const s = `%${paginationDto.search}%`;
+      qb.andWhere('(damaged.razon ILIKE :search OR lote.nombre ILIKE :search)', { search: s });
+    }
+
+    if (paginationDto.tipo && paginationDto.tipo !== 'todos') {
+      qb.andWhere('tipo.tipo = :tipo', { tipo: paginationDto.tipo });
+    }
+
+    const paginatedResult = await paginateAndRespond(qb, paginationDto);
+
+    return {
+      message: 'Lista de huevos dañados obtenida',
       ...paginatedResult,
     };
   }
@@ -138,6 +181,22 @@ export class EggInventoryService {
       message: `Inventario ${id} encontrado`,
       data: inv,
     };
+  }
+
+  async getHistory(paginationDto: PaginationDto) {
+    const qb = this.historyRepo.createQueryBuilder('hist')
+      .leftJoinAndSelect('hist.inventario', 'inventario')
+      .leftJoinAndSelect('inventario.tipo_huevo', 'tipo_huevo')
+      .leftJoinAndSelect('inventario.lote', 'lote')
+      .orderBy('hist.fecha', 'DESC');
+
+    if (paginationDto.search) {
+      const s = `%${paginationDto.search}%`;
+      qb.andWhere('(lote.nombre ILIKE :search OR hist.tipoMovimiento ILIKE :search)', { search: s });
+    }
+
+    const paginatedResult = await paginateAndRespond(qb, paginationDto);
+    return { message: 'Historial de huevos obtenido', ...paginatedResult };
   }
 
   async getProductionReport(periodo: 'semanal' | 'mensual' | 'trimestral', paginationDto: PaginationDto) {
@@ -170,6 +229,63 @@ export class EggInventoryService {
     return {
       message: `Reporte de producción ${periodo} obtenido`,
       ...paginatedResult,
+    };
+  }
+
+  async update(id: string, dto: UpdateEggInventoryDto) {
+    const inv = await this.inventoryRepo.findOne({
+      where: { id_inventario_huevo: id },
+      relations: ['tipo_huevo', 'lote'],
+    });
+
+    if (!inv) {
+      throw new NotFoundException(`Registro de inventario ${id} no encontrado`);
+    }
+
+    const cantidadAnterior = inv.cantidad;
+
+    if (dto.tipoHuevoId) {
+      inv.tipo_huevo = { id_tipo: dto.tipoHuevoId } as any;
+    }
+    if (dto.loteId) {
+      inv.lote = { id_lote: dto.loteId } as any;
+    }
+    if (dto.cantidad !== undefined) {
+      inv.cantidad = dto.cantidad;
+    }
+
+    const saved = await this.inventoryRepo.save(inv);
+
+    // Write history entry for quantity changes
+    if (dto.cantidad !== undefined && dto.cantidad !== cantidadAnterior) {
+      await this.historyRepo.save(
+        this.historyRepo.create({
+          inventario: saved,
+          cantidad: saved.cantidad,
+          cantidadAnterior,
+          tipoMovimiento: 'Actualización',
+        })
+      );
+    }
+
+    return {
+      message: 'Registro de inventario actualizado correctamente',
+      data: saved,
+    };
+  }
+
+  async remove(id: string) {
+    const inv = await this.inventoryRepo.findOne({
+      where: { id_inventario_huevo: id },
+    });
+
+    if (!inv) {
+      throw new NotFoundException(`Registro de inventario ${id} no encontrado`);
+    }
+
+    await this.inventoryRepo.softRemove(inv);
+    return {
+      message: 'Registro de inventario eliminado correctamente',
     };
   }
 }

@@ -6,6 +6,8 @@ import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { User } from '../users/entities/user.entity';
+import { RbacService } from './rbac.service';
+import { BASE_ROLES } from './rbac.util';
 
 @Injectable()
 export class AuthService {
@@ -15,7 +17,29 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly rbacService: RbacService,
   ) {}
+
+  /**
+   * Construye a partir del usuario la lista de roles y permisos actualizados.
+   * Esta función se usa para no confiar únicamente en el payload del JWT.
+   */
+  private buildAuthCollections(usuario: User) {
+    const roles = usuario.usuarioRoles?.map((ur) => ur.rol?.nombre).
+      filter((r): r is string => typeof r === 'string') || [];
+
+    const permisosSet = new Set<string>();
+    usuario.usuarioRoles?.forEach((ur) => {
+      ur.rol?.rolPermisos?.forEach((rp) => {
+        if (rp.permiso?.nombre) permisosSet.add(rp.permiso.nombre);
+      });
+    });
+
+    return {
+      roles,
+      permissions: Array.from(permisosSet),
+    };
+  }
 
   async login(dto: LoginDto): Promise<{ access_token: string; usuario: Omit<User, 'password'> & { roles: string[], permissions: string[] } }> {
     this.logger.log(`Intentando login para el documento: ${dto.documento}`);
@@ -54,26 +78,14 @@ export class AuthService {
       );
     }
 
-    // 5. Mapear roles
-    const roles = usuario.usuarioRoles?.map((ur) => ur.rol?.nombre).filter((r): r is string => typeof r === 'string') || [];
-
-    // Mapear permisos
-    const permisosSet = new Set<string>();
-    usuario.usuarioRoles?.forEach((ur) => {
-      ur.rol?.rolPermisos?.forEach((rp) => {
-        if (rp.permiso?.nombre) {
-          permisosSet.add(rp.permiso.nombre);
-        }
-      });
-    });
-    const permissions = Array.from(permisosSet);
+    const { roles, permissions } = this.buildAuthCollections(usuario);
 
     // 6. Generar Payload y Token
     const payload: JwtPayload = {
       sub: usuario.id_usuario,
       email: usuario.email,
-      roles: roles,
-      permissions: permissions,
+      roles,
+      permissions,
     };
 
     const { password, ...usuarioSinPassword } = usuario;
@@ -92,28 +104,29 @@ export class AuthService {
 
   async loginGuest() {
     this.logger.log('Login como invitado');
-    
-    // Visitante rol en DB es id:3 o nombre: 'VISITANTE'
-    // Como es un invitado sin DB user, creamos un payload dummy
+
+    const { roles, permissions } = await this.rbacService.loadRoleAuthorization(
+      BASE_ROLES.VISITANTE,
+    );
+
     const payload: JwtPayload = {
       sub: 'guest',
       email: 'guest@senavicola.com',
-      roles: ['VISITANTE'],
-      permissions: ['GALPONES_LEER', 'LOTES_LEER', 'RAZAS_LEER'], // Por defecto lectura básica, ajustaremos en JwtStrategy o aquí
+      roles,
+      permissions,
     };
 
     return {
       access_token: this.jwtService.sign(payload),
       usuario: {
         id_usuario: 'guest',
-        nombres: 'Invitado',
-        apellidos: '',
+        nombre: 'Invitado',
+        apellido: '',
         documento: '000000000',
         email: 'guest@senavicola.com',
-        telefono: '',
         activo: true,
-        roles: ['VISITANTE'],
-        permissions: payload.permissions,
+        roles,
+        permissions,
       },
     };
   }

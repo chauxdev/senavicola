@@ -15,6 +15,7 @@ import { EggTypesService } from '../../../core/services/api.services';
       icon="fa-egg"
       idField="id_tipo"
       [fields]="fields"
+      [disabledOnEditFields]="['tipo']"
     />
   `,
 })

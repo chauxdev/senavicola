@@ -28,6 +28,9 @@ export class SupplyHistory {
   @Column({ type: 'timestamp' })
   fecha!: Date;
 
+  @Column({ type: 'varchar', length: 255, default: 'Sistema' })
+  usuario!: string;
+
   @ManyToOne(() => Supply, (insumo) => insumo.historial)
   @JoinColumn({ name: 'id_insumos' })
   insumo!: Supply;

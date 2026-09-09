@@ -14,6 +14,7 @@ import { PermissionsService } from '../../../core/services/api.services';
       entityName="Permiso"
       icon="fa-key"
       [fields]="fields"
+      [disabledOnEditFields]="['nombre']"
     />
   `,
 })

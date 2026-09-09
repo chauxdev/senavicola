@@ -10,6 +10,7 @@ import { CreateSupplyHistoryDto } from './dto/create-supply-history.dto';
 import { UpdateSupplyHistoryDto } from './dto/update-supply-history.dto';
 import { Supply } from '../supplies/entities/supply.entity';
 import { SupplyAction } from '../supply-actions/entities/supply-action.entity';
+import { paginateAndRespond, StandardPaginationResponse } from '../common/utils/pagination.util';
 
 // Acciones que reducen stock (por nombre)
 const ACCIONES_SALIDA = ['SALIDA', 'CONSUMO', 'BAJA', 'MERMA'];
@@ -84,6 +85,27 @@ export class SupplyHistoryService {
 
       return manager.save(SupplyHistory, historial);
     });
+  }
+
+  async findAllPaginated(paginationDto: any): Promise<StandardPaginationResponse<SupplyHistory>> {
+    const qb = this.historyRepository.createQueryBuilder('history')
+      .leftJoinAndSelect('history.insumo', 'insumo')
+      .leftJoinAndSelect('history.accion', 'accion')
+      .leftJoinAndSelect('insumo.categoria', 'categoria')
+      .leftJoinAndSelect('insumo.unidadMedida', 'unidadMedida');
+
+    if (paginationDto.search) {
+      const s = `%${paginationDto.search}%`;
+      qb.andWhere('(insumo.nombre ILIKE :search OR history.descripcion ILIKE :search)', { search: s });
+    }
+
+    if (paginationDto.tipo && paginationDto.tipo !== 'todos') {
+      qb.andWhere('LOWER(accion.nombre) = LOWER(:tipo)', { tipo: paginationDto.tipo });
+    }
+
+    qb.orderBy('history.fecha', 'DESC');
+
+    return paginateAndRespond(qb, paginationDto);
   }
 
   async findAll(): Promise<SupplyHistory[]> {

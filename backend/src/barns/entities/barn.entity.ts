@@ -27,10 +27,7 @@ export class Barn {
   capacidad_max_aves!: number;
 
   @Column('decimal')
-  longitud!: number;
-
-  @Column('decimal', { nullable: true })
-  area?: number;
+  area!: number;
 
   @ManyToOne(() => MeasurementUnit, { nullable: true })
   @JoinColumn({ name: 'id_unidad_medida' })

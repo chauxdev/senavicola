@@ -15,6 +15,7 @@ import { BreedsService } from '../../../core/services/api.services';
       icon="fa-dna"
       idField="id_raza"
       [fields]="fields"
+      [disabledOnEditFields]="['nombre']"
     />
   `,
 })

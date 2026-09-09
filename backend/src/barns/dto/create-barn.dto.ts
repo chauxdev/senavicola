@@ -13,11 +13,7 @@ export class CreateBarnDto {
   capacidad_max_aves!: number;
 
   @IsNumber()
-  longitud!: number;
-
-  @IsNumber()
-  @IsOptional()
-  area?: number;
+  area!: number;
 
   @IsString()
   @IsOptional()

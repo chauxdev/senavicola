@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -19,13 +20,28 @@ export class UpdateSupplyDto {
   @Min(0)
   cantidad?: number;
 
-  @IsInt()
+  @IsNumber()
   @IsOptional()
-  id_categoria?: number;
+  @Min(0)
+  stockMinimo?: number;
 
-  @IsInt()
+  @IsString()
   @IsOptional()
-  id_unidad_medida?: number;
+  @MaxLength(255)
+  proveedor?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  precioUnitario?: number;
+
+  @IsUUID()
+  @IsOptional()
+  id_categoria?: string;
+
+  @IsUUID()
+  @IsOptional()
+  id_unidad_medida?: string;
 
   @IsDateString()
   @IsOptional()

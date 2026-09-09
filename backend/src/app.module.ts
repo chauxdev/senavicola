@@ -22,6 +22,8 @@ import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BackupModule } from './backup/backup.module';
+import { DatabaseSeedModule } from './database/seeds/database-seed.module';
+import { VisionModule } from './vision/vision.module';
 
 import { validateEnv } from './config/env.validation';
 
@@ -45,7 +47,7 @@ import { validateEnv } from './config/env.validation';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: true,
         logging: configService.get<string>('NODE_ENV') === 'development',
       }),
     }),
@@ -68,6 +70,8 @@ import { validateEnv } from './config/env.validation';
     HealthModule,
     DashboardModule,
     BackupModule,
+    DatabaseSeedModule,
+    VisionModule,
   ],
   controllers: [],
   providers: [

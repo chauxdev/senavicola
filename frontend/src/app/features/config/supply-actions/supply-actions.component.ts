@@ -15,6 +15,7 @@ import { SupplyActionsService } from '../../../core/services/api.services';
       icon="fa-tasks"
       idField="id_accion_historial_movimiento"
       [fields]="fields"
+      [disabledOnEditFields]="['nombre']"
     />
   `,
 })

@@ -3,17 +3,20 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { UsersService, RolesService } from '../../../core/services/api.services';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ToastService } from '../../../core/services/toast.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { PermissionsService } from '../../../core/services/permissions.service';
 import { User, Role } from '../../../core/models';
 
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent, HasPermissionDirective],
   template: `
     <div class="users-page">
       <div class="module-header">
@@ -26,7 +29,7 @@ import { User, Role } from '../../../core/models';
         </div>
         <div class="module-header-right">
           <a routerLink="/config" class="btn-outline"><i class="fas fa-arrow-left"></i> Volver</a>
-          <button class="btn-green" (click)="openModal()">
+          <button class="btn-green" *appHasPermission="'USUARIOS_CREAR'" (click)="openModal()">
             <i class="fas fa-plus"></i> Nuevo Usuario
           </button>
         </div>
@@ -52,12 +55,12 @@ import { User, Role } from '../../../core/models';
           <div class="table-responsive">
             <table class="data-table">
               <thead>
-                <tr><th>ID</th><th>Nombre</th><th>Documento</th><th>Email</th><th>Roles</th><th>Estado</th><th>Acciones</th></tr>
+                <tr><th style="width: 60px;">#</th><th>Nombre</th><th>Documento</th><th>Email</th><th>Roles</th><th>Estado</th><th style="text-align: right; width: 180px;">Acciones</th></tr>
               </thead>
               <tbody>
-                @for (user of filtered(); track user.id_usuario) {
+                @for (user of filtered(); track user.id_usuario; let idx = $index) {
                   <tr>
-                    <td>#{{ user.id_usuario.substring(0, 8) }}…</td>
+                    <td><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                     <td><strong>{{ user.nombre }}</strong></td>
                     <td>{{ user.documento || user.numero_documento || '—' }}</td>
                     <td>{{ user.email || '—' }}</td>
@@ -74,11 +77,11 @@ import { User, Role } from '../../../core/models';
                         {{ user.estado !== false ? 'Activo' : 'Inactivo' }}
                       </span>
                     </td>
-                    <td class="actions-cell">
+                    <td class="actions-cell" style="justify-content: flex-end;">
                         <button class="btn-icon view" title="Ver Detalle" (click)="viewUser(user)"><i class="fas fa-eye"></i></button>
-                        <button class="btn-icon edit" title="Editar" (click)="editUser(user)"><i class="fas fa-edit"></i></button>
-                        <button class="btn-icon assign" title="Asignar Rol" (click)="openRoleModal(user)"><i class="fas fa-user-tag"></i></button>
-                        <button class="btn-icon delete" title="Eliminar" (click)="deleteUser(user.id_usuario)"><i class="fas fa-trash"></i></button>
+                          <button class="btn-icon edit" *appHasPermission="'USUARIOS_EDITAR'" title="Editar" (click)="editUser(user)"><i class="fas fa-edit"></i></button>
+                          <button class="btn-icon assign" *appHasPermission="'ROLES_EDITAR'" title="Asignar Rol" (click)="openRoleModal(user)"><i class="fas fa-user-tag"></i></button>
+                          <button class="btn-icon delete" *appHasPermission="'USUARIOS_ELIMINAR'" title="Inactivar" (click)="deleteUser(user.id_usuario)"><i class="fas fa-ban"></i></button>
                       </td>
                   </tr>
                 }
@@ -106,32 +109,32 @@ import { User, Role } from '../../../core/models';
           <div class="modal-body">
             <form [formGroup]="userForm">
               <div class="form-group">
-                <label><i class="fas fa-user"></i> Nombre</label>
-                <input type="text" formControlName="nombre" placeholder="Nombre" />
+                <label><i class="fas fa-user"></i> Nombre <span style="color: red">*</span></label>
+                <input type="text" formControlName="nombre" placeholder="Nombre" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-group">
-                <label><i class="fas fa-user"></i> Apellido</label>
-                <input type="text" formControlName="apellido" placeholder="Apellido" />
+                <label><i class="fas fa-user"></i> Apellido <span style="color: red">*</span></label>
+                <input type="text" formControlName="apellido" placeholder="Apellido" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label><i class="fas fa-id-card"></i> Documento</label>
-                  <input type="text" formControlName="documento" placeholder="Número de documento" />
+                  <label><i class="fas fa-id-card"></i> Documento <span style="color: red">*</span></label>
+                  <input type="text" formControlName="documento" placeholder="Número de documento" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
                 </div>
                 <div class="form-group">
-                  <label><i class="fas fa-envelope"></i> Email</label>
-                  <input type="email" formControlName="email" placeholder="correo@ejemplo.com" />
+                  <label><i class="fas fa-envelope"></i> Email <span style="color: red">*</span></label>
+                  <input type="email" formControlName="email" placeholder="correo@ejemplo.com" [readonly]="permissions.isVisitor() || editing() !== null" [class.input-disabled]="permissions.isVisitor() || editing() !== null" />
                 </div>
               </div>
               @if (!editing()) {
                 <div class="form-row">
                   <div class="form-group">
                     <label><i class="fas fa-lock"></i> Contraseña</label>
-                    <input type="password" formControlName="password" placeholder="Contraseña" />
+                    <input type="password" formControlName="password" placeholder="Contraseña" [readonly]="permissions.isVisitor()" [class.input-disabled]="permissions.isVisitor()" />
                   </div>
                   <div class="form-group">
-                    <label><i class="fas fa-user-tag"></i> Rol Inicial</label>
-                    <select formControlName="rolId">
+                    <label><i class="fas fa-user-tag"></i> Rol Inicial <span style="color: red">*</span></label>
+                    <select formControlName="rolId" [attr.disabled]="permissions.isVisitor() ? true : null">
                       <option value="">Seleccionar rol</option>
                       @for (role of roles(); track role.id_rol) {
                         <option [value]="role.id_rol">{{ role.nombre }}</option>
@@ -140,15 +143,26 @@ import { User, Role } from '../../../core/models';
                   </div>
                 </div>
               }
+              @if (editing()) {
+                <div class="form-group switch-group">
+                  <label><i class="fas fa-toggle-on"></i> Estado</label>
+                  <div class="switch-field">
+                    <input type="checkbox" id="activoSwitch" formControlName="activo" [attr.disabled]="permissions.isVisitor() ? true : null" />
+                    <label for="activoSwitch">{{ userForm.controls.activo.value ? 'Activo' : 'Inactivo' }}</label>
+                  </div>
+                </div>
+              }
             </form>
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="save()" [disabled]="saving()">
-              @if (saving()) { <span class="spinner_sm"></span> }
-              @else { <i class="fas fa-save"></i> }
-              {{ editing() ? 'Actualizar' : 'Crear Usuario' }}
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="save()" [disabled]="saving()">
+                @if (saving()) { <span class="spinner_sm"></span> }
+                @else { <i class="fas fa-save"></i> }
+                {{ editing() ? 'Actualizar' : 'Crear Usuario' }}
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -165,7 +179,7 @@ import { User, Role } from '../../../core/models';
           <div class="modal-body">
             @if (viewingUser()) {
               <div class="profile-info" style="font-size: 1.4rem; line-height: 1.8;">
-                <p><strong>ID:</strong> {{ viewingUser()?.id_usuario }}</p>
+
                 <p><strong>Nombre:</strong> {{ viewingUser()?.nombre }}</p>
                 <p><strong>Documento:</strong> {{ viewingUser()?.documento || viewingUser()?.numero_documento }}</p>
                 <p><strong>Email:</strong> {{ viewingUser()?.email || 'No registrado' }}</p>
@@ -206,7 +220,9 @@ import { User, Role } from '../../../core/models';
                 @for (role of (selectedUser()?.roles || []); track role.id_rol) {
                   <span class="badge active">
                     {{ role.nombre }}
-                    <button class="chip-remove" (click)="removeRole(role.id_rol)"><i class="fas fa-times"></i></button>
+                    @if (permissions.canWrite()) {
+                      <button class="chip-remove" (click)="removeRole(role.id_rol)"><i class="fas fa-times"></i></button>
+                    }
                   </span>
                 }
                 @if (!(selectedUser()?.roles?.length)) {
@@ -216,7 +232,7 @@ import { User, Role } from '../../../core/models';
             </div>
             <div class="form-group">
               <label><i class="fas fa-plus-circle"></i> Asignar Nuevo Rol</label>
-              <select [(ngModel)]="selectedRoleId">
+              <select [(ngModel)]="selectedRoleId" [attr.disabled]="permissions.isVisitor() ? true : null">
                 <option value="">Seleccionar rol</option>
                 @for (role of roles(); track role.id_rol) {
                   <option [value]="role.id_rol">{{ role.nombre }}</option>
@@ -226,32 +242,17 @@ import { User, Role } from '../../../core/models';
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cerrar</button>
-            <button class="btn-green" (click)="assignRole()" [disabled]="!selectedRoleId">
-              <i class="fas fa-plus"></i> Asignar Rol
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="assignRole()" [disabled]="!selectedRoleId">
+                <i class="fas fa-plus"></i> Asignar Rol
+              </button>
+            }
           </div>
         </div>
       </div>
     }
 
-    @if (showConfirmModal()) {
-      <div class="modal-overlay" (click)="cancelConfirm()">
-        <div class="modal-card" (click)="$event.stopPropagation()">
-          <div class="modal-header">
-            <h3><i class="fas fa-exclamation-triangle" style="color: var(--danger, #e53935);"></i> Confirmar</h3>
-            <button class="btn-close" (click)="cancelConfirm()"><i class="fas fa-times"></i></button>
-          </div>
-          <div class="modal-body" style="text-align: center; padding: 2rem;">
-            <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--danger, #e53935); margin-bottom: 1.5rem; display: block;"></i>
-            <p style="font-size: 1.5rem;">{{ confirmMessage }}</p>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-outline" (click)="cancelConfirm()">Cancelar</button>
-            <button class="btn-danger" (click)="executeConfirm()"><i class="fas fa-check"></i> Confirmar</button>
-          </div>
-        </div>
-      </div>
-    }
+
   `,
   styles: [`
     .table-responsive { overflow-x: auto; }
@@ -271,6 +272,8 @@ export class UsersComponent implements OnInit {
   private usersService = inject(UsersService);
   private rolesService = inject(RolesService);
   private toast = inject(ToastService);
+  private confirmService = inject(ConfirmService);
+  public permissions = inject(PermissionsService);
 
   loading = signal(true);
   users = signal<User[]>([]);
@@ -283,7 +286,7 @@ export class UsersComponent implements OnInit {
   currentPage = 1;
   totalPages = 1;
   totalItems = 0;
-  limit = 10;
+  limit = 5;
 
   showModal = signal(false);
   showRoleModal = signal(false);
@@ -294,9 +297,7 @@ export class UsersComponent implements OnInit {
   selectedRoleId = '';
   saving = signal(false);
 
-  showConfirmModal = signal(false);
-  confirmMessage = '';
-  confirmAction: (() => void) | null = null;
+
 
   userForm = this.fb.group({
     nombre: ['', Validators.required],
@@ -305,6 +306,7 @@ export class UsersComponent implements OnInit {
     email: ['', [Validators.required, Validators.email]],
     password: [''],
     rolId: [''],
+    activo: [true],
   });
 
   ngOnInit(): void {
@@ -351,7 +353,13 @@ export class UsersComponent implements OnInit {
 
   editUser(user: User): void {
     this.editing.set(user);
-    this.userForm.patchValue({ nombre: user.nombre, apellido: (user as any).apellido || '', documento: user.numero_documento || user.documento || '', email: user.email || '' });
+    this.userForm.patchValue({
+      nombre: user.nombre,
+      apellido: (user as any).apellido || '',
+      documento: user.numero_documento || user.documento || '',
+      email: user.email || '',
+      activo: user.estado !== false,
+    });
     this.showModal.set(true);
   }
 
@@ -382,28 +390,21 @@ export class UsersComponent implements OnInit {
     });
   }
 
-  deleteUser(id: string): void {
-    this.requestConfirm('¿Eliminar este usuario?', () => {
-      this.usersService.delete(id).subscribe({
-        next: () => { this.toast.success('Usuario eliminado'); this.loadUsers(); },
-        error: () => this.toast.error('Error al eliminar'),
-      });
+  async deleteUser(id: string) {
+    const user = this.users().find(u => u.id_usuario === id);
+    const userName = user ? user.nombre : '';
+
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: `¿Estás seguro de que deseas eliminar al usuario '${userName}'? Esta acción no se puede deshacer.`
     });
-  }
 
-  requestConfirm(message: string, action: () => void): void {
-    this.confirmMessage = message;
-    this.confirmAction = action;
-    this.showConfirmModal.set(true);
-  }
+    if (!confirmed) return;
 
-  executeConfirm(): void {
-    if (this.confirmAction) this.confirmAction();
-    this.showConfirmModal.set(false);
-  }
-
-  cancelConfirm(): void {
-    this.showConfirmModal.set(false);
+    this.usersService.delete(id).subscribe({
+      next: () => { this.toast.success('Usuario eliminado'); this.loadUsers(); },
+      error: () => this.toast.error('Error al eliminar'),
+    });
   }
 
   assignRole(): void {

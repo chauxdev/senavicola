@@ -4,13 +4,16 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { RolesService, PermissionsService } from '../../../core/services/api.services';
+import { PermissionsService as RbacPermissions } from '../../../core/services/permissions.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { Role, Permission } from '../../../core/models';
 
 @Component({
   selector: 'app-roles',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent],
   template: `
     <div class="roles-page">
       <div class="module-header">
@@ -20,7 +23,9 @@ import { Role, Permission } from '../../../core/models';
         </div>
         <div class="module-header-right">
           <a routerLink="/config" class="btn-outline"><i class="fas fa-arrow-left"></i> Volver</a>
-          <button class="btn-green" (click)="openModal()"><i class="fas fa-plus"></i> Nuevo Rol</button>
+          @if (rbac.canWrite()) {
+            <button class="btn-green" (click)="openModal()"><i class="fas fa-plus"></i> Nuevo Rol</button>
+          }
         </div>
       </div>
 
@@ -38,23 +43,30 @@ import { Role, Permission } from '../../../core/models';
         } @else {
           <div class="table-responsive">
             <table class="data-table">
-              <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
+              <thead><tr><th style="width: 60px;">#</th><th>Nombre</th><th>Descripción</th><th style="text-align: right; width: 120px;">Acciones</th></tr></thead>
               <tbody>
-                @for (role of filtered(); track role.id_rol) {
+                @for (role of pagedRoles; track role.id_rol; let idx = $index) {
                   <tr>
-                    <td>#{{ role.id_rol }}</td>
+                    <td><strong>{{ (currentPage - 1) * limit + idx + 1 }}</strong></td>
                     <td><strong>{{ role.nombre }}</strong></td>
                     <td>{{ role.descripcion || '—' }}</td>
-                    <td class="actions-cell">
-                      <button class="btn-icon edit" (click)="editRole(role)"><i class="fas fa-edit"></i></button>
-                      <button class="btn-icon view" title="Ver permisos" (click)="openPermModal(role)"><i class="fas fa-key"></i></button>
-                      <button class="btn-icon delete" (click)="deleteRole(role.id_rol)"><i class="fas fa-trash"></i></button>
+                    <td class="actions-cell" style="justify-content: flex-end;">
+                      @if (rbac.canWrite()) {
+                        <button class="btn-icon edit" (click)="editRole(role)"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon delete" (click)="deleteRole(role.id_rol)"><i class="fas fa-trash"></i></button>
+                      }
                     </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+          <app-pagination 
+            [currentPage]="currentPage" 
+            [totalPages]="totalPages" 
+            [totalItems]="filtered().length"
+            (pageChange)="onPageChange($event)">
+          </app-pagination>
         }
       </div>
     </div>
@@ -69,62 +81,66 @@ import { Role, Permission } from '../../../core/models';
           <div class="modal-body">
             <form [formGroup]="roleForm">
               <div class="form-group">
-                <label><i class="fas fa-user-tag"></i> Nombre del Rol</label>
-                <input type="text" formControlName="nombre" placeholder="Ej: Administrador" />
+                <label><i class="fas fa-user-tag"></i> Nombre del Rol <span style="color: red">*</span></label>
+                <input type="text" formControlName="nombre" placeholder="Ej: Administrador" [readonly]="editing() !== null" [class.input-disabled]="editing() !== null" />
               </div>
               <div class="form-group">
                 <label><i class="fas fa-info-circle"></i> Descripción</label>
                 <textarea formControlName="descripcion" placeholder="Descripción del rol..." rows="3"></textarea>
               </div>
+              <div class="form-group">
+                <label><i class="fas fa-lock"></i> Permisos <span style="color: red">*</span></label>
+                <div class="permissions-filters" style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem">
+                  <input class="input_busqueda" placeholder="Buscar permiso..." [(ngModel)]="permissionFilter" [ngModelOptions]="{standalone: true}" (input)="onFilterChange()" />
+                  <select [(ngModel)]="moduleFilter" [ngModelOptions]="{standalone: true}" (change)="onFilterChange()">
+                    <option value="all">Todos los módulos</option>
+                    <option value="usuarios">Usuarios</option>
+                    <option value="roles">Roles y Permisos</option>
+                    <option value="lotes">Lotes/Gallinas</option>
+                    <option value="galpones">Galpones</option>
+                    <option value="huevos">Huevos</option>
+                    <option value="insumos">Insumos</option>
+                    <option value="reportes">Reportes y Backup</option>
+                  </select>
+                </div>
+
+                <div class="permissions-accordion">
+                  @for (g of permissionGroups; track g.key) {
+                    @if (filteredGroupPerms(g).length > 0) {
+                      <div class="perm-group">
+                        <div class="perm-group-header">
+                          <input class="group-checkbox" type="checkbox" [checked]="isGroupChecked(g)" (change)="toggleGroupCheckbox(g, $event.target.checked)" />
+                          <strong class="perm-group-title">{{ g.label }}</strong>
+                          <button class="accordion-toggle" (click)="toggleGroup(g.key)">{{ g.expanded ? '-' : '+' }}</button>
+                        </div>
+                        @if (g.expanded) {
+                          <div class="perm-group-body">
+                            @for (perm of filteredGroupPerms(g); track perm.id_permiso) {
+                              <label class="permission-item">
+                                <input type="checkbox" [checked]="selectedPermissionIds().includes(perm.id_permiso)" (change)="togglePermission(perm.id_permiso, $event.target.checked)" />
+                                <span class="permission-label">{{ perm.nombre }}</span>
+                              </label>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
             </form>
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModals()">Cancelar</button>
-            <button class="btn-green" (click)="save()"><i class="fas fa-save"></i> {{ editing() ? 'Actualizar' : 'Crear' }}</button>
+            @if (rbac.canWrite()) {
+              <button class="btn-green" (click)="save()"><i class="fas fa-save"></i> {{ editing() ? 'Actualizar' : 'Crear' }}</button>
+            }
           </div>
         </div>
       </div>
     }
 
-    @if (showPermModal()) {
-      <div class="modal-overlay" (click)="closeModals()">
-        <div class="modal-card modal-lg" (click)="$event.stopPropagation()">
-          <div class="modal-header">
-            <h3><i class="fas fa-key"></i> Permisos del Rol: {{ selectedRole()?.nombre }}</h3>
-            <button class="btn-close" (click)="closeModals()"><i class="fas fa-times"></i></button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label>Permisos Asignados</label>
-              <div class="role-chips">
-                @for (perm of rolePermissions(); track perm.id) {
-                  <span class="badge active">
-                    {{ perm.nombre }}
-                    <button class="chip-remove" (click)="removePermission(perm.id)"><i class="fas fa-times"></i></button>
-                  </span>
-                }
-                @if (!rolePermissions().length) { <span class="badge inactive">Sin permisos</span> }
-              </div>
-            </div>
-            <div class="form-group" style="margin-top:2rem">
-              <label>Agregar Permiso</label>
-              <select [(ngModel)]="selectedPermId">
-                <option value="">Seleccionar permiso</option>
-                @for (perm of allPermissions(); track perm.id) {
-                  <option [value]="perm.id">{{ perm.nombre }}</option>
-                }
-              </select>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-outline" (click)="closeModals()">Cerrar</button>
-            <button class="btn-green" (click)="assignPermission()" [disabled]="!selectedPermId">
-              <i class="fas fa-plus"></i> Asignar
-            </button>
-          </div>
-        </div>
-      </div>
-    }
+    <!-- permissions are now managed inside the Edit Role modal -->
   `,
   styles: [`
     .table-responsive { overflow-x: auto; }
@@ -136,26 +152,117 @@ import { Role, Permission } from '../../../core/models';
     .btn-close { background: none; border: none; font-size: 2rem; color: var(--gray-dark); cursor: pointer; }
     .role-chips { display: flex; flex-wrap: wrap; gap: 0.8rem; }
     .chip-remove { background: none; border: none; cursor: pointer; color: inherit; margin-left: 0.4rem; }
+    .permissions-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-top: 1rem; }
+    .permission-item { display: flex; align-items: center; gap: 0.7rem; border: 1px solid var(--gray-light); border-radius: 0.6rem; padding: 0.9rem 1rem; background: var(--white); cursor: pointer; }
+    .permission-item input { width: 1.3rem; height: 1.3rem; accent-color: var(--primary-green); }
+    .permissions-accordion { display:flex; flex-direction:column; gap:0.8rem; overflow-y:auto; padding:0.25rem; }
+    .perm-group { border:1px solid var(--gray-light); border-radius:8px; overflow:hidden; }
+    .perm-group-header { display:flex; align-items:center; gap:0.6rem; padding:0.6rem 1rem; background: linear-gradient(180deg, #fff, #fafafa); }
+    .perm-group-header .group-checkbox { width:1.25rem; height:1.25rem; accent-color: var(--primary-green); }
+    .perm-group-title { margin-left:0.6rem; font-weight:700; }
+    .perm-group-body { padding:1rem 1.2rem; display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; background: #fff; }
+    .permission-label { display:block; }
+    .accordion-toggle { margin-left:auto; background:none; border:none; font-size:1.1rem; cursor:pointer; }
   `],
 })
 export class RolesComponent implements OnInit {
   private fb = inject(FormBuilder);
   private rolesService = inject(RolesService);
   private permissionsService = inject(PermissionsService);
+  public rbac = inject(RbacPermissions);
   private toast = inject(ToastService);
+  private confirmService = inject(ConfirmService);
 
   loading = signal(true);
   roles = signal<Role[]>([]);
   filtered = signal<Role[]>([]);
   allPermissions = signal<Permission[]>([]);
-  rolePermissions = signal<Permission[]>([]);
+  
+  selectedPermissionIds = signal<number[]>([]);
   searchQuery = '';
   showModal = signal(false);
-  showPermModal = signal(false);
   editing = signal<Role | null>(null);
   selectedRole = signal<Role | null>(null);
-  selectedPermId = '';
+  
   saving = signal(false);
+
+  currentPage = 1;
+  limit = 5;
+
+  get pagedRoles(): Role[] {
+    const start = (this.currentPage - 1) * this.limit;
+    return this.filtered().slice(start, start + this.limit);
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.filtered().length / this.limit);
+  }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+  }
+
+  // Permission UI state
+  permissionFilter = '';
+  moduleFilter: string = 'all';
+
+  // Define logical groups and the permission names that belong to each
+  permissionGroups: Array<{ key: string; label: string; names: string[]; expanded?: boolean }> = [
+    { key: 'usuarios', label: 'Usuarios', names: ['USUARIOS_VER','USUARIOS_CREAR','USUARIOS_EDITAR','USUARIOS_DESACTIVAR','USUARIOS_ELIMINAR'], expanded: true },
+    { key: 'roles', label: 'Roles y Permisos', names: ['ROLES_VER','ROLES_CREAR','ROLES_EDITAR','ROLES_ELIMINAR'], expanded: true },
+    { key: 'lotes', label: 'Lotes/Gallinas', names: ['LOTES_VER','LOTES_CREAR','LOTES_EDITAR','LOTES_ELIMINAR'], expanded: false },
+    { key: 'galpones', label: 'Galpones', names: ['GALPONES_VER','GALPONES_CREAR','GALPONES_EDITAR','GALPONES_ELIMINAR'], expanded: false },
+    { key: 'huevos', label: 'Huevos', names: ['HUEVOS_VER','HUEVOS_CREAR','HUEVOS_EDITAR'], expanded: false },
+    { key: 'insumos', label: 'Insumos', names: ['INSUMOS_VER','INSUMOS_CREAR','INSUMOS_EDITAR','INSUMOS_ELIMINAR'], expanded: false },
+    { key: 'reportes', label: 'Reportes y Backup', names: ['REPORTES_VER','BACKUP_GESTIONAR'], expanded: false },
+  ];
+  onFilterChange(): void {
+    // Force Angular change detection by reassigning the array reference
+    this.permissionGroups = [...this.permissionGroups];
+  }
+
+  toggleGroup(key: string): void {
+    this.permissionGroups = this.permissionGroups.map(g => g.key === key ? { ...g, expanded: !g.expanded } : g);
+  }
+
+  // Returns permissions in a group applying top-level filters (robust against casing)
+  filteredGroupPerms(group: any) {
+    const all = this.allPermissions() || [];
+    // normalize names to upper-case for reliable matching against group.names
+    let perms = all.filter(p => group.names.includes(String(p.nombre || '').toUpperCase()));
+    // text search: search in nombre and descripcion
+    if (this.permissionFilter && String(this.permissionFilter).trim() !== '') {
+      const q = this.permissionFilter.toLowerCase();
+      perms = perms.filter(p => {
+        const name = String(p.nombre || '').toLowerCase();
+        const desc = String(p.descripcion || '').toLowerCase();
+        return name.includes(q) || desc.includes(q);
+      });
+    }
+    // module filter: if a specific module is selected, only return when group matches
+    if (this.moduleFilter && this.moduleFilter !== 'all' && group.key !== this.moduleFilter) {
+      return [];
+    }
+    return perms;
+  }
+
+  isGroupChecked(group: any): boolean {
+    const perms = this.filteredGroupPerms(group);
+    if (!perms.length) return false;
+    return perms.every(p => this.selectedPermissionIds().includes(p.id_permiso));
+  }
+
+  toggleGroupCheckbox(group: any, checked: boolean): void {
+    const perms = this.filteredGroupPerms(group);
+    this.selectedPermissionIds.update(ids => {
+      const idsSet = new Set(ids);
+      perms.forEach((p: any) => {
+        if (checked) idsSet.add(p.id_permiso);
+        else idsSet.delete(p.id_permiso);
+      });
+      return Array.from(idsSet);
+    });
+  }
 
   roleForm = this.fb.group({
     nombre: ['', Validators.required],
@@ -163,13 +270,22 @@ export class RolesComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.loadRoles();
-    this.permissionsService.getAll().subscribe((p) => this.allPermissions.set(p));
+    // Load permissions first so the modal can render grouped permissions immediately
+    this.permissionsService.getAll().subscribe({
+      next: (p) => this.allPermissions.set(p),
+      error: () => this.allPermissions.set([]),
+      complete: () => this.loadRoles(),
+    });
   }
 
   private loadRoles(): void {
     this.rolesService.getAll().subscribe({
-      next: (data) => { this.roles.set(data); this.filtered.set(data); this.loading.set(false); },
+      next: (data) => { 
+        this.roles.set(data); 
+        this.filtered.set(data); 
+        this.currentPage = 1;
+        this.loading.set(false); 
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -177,59 +293,127 @@ export class RolesComponent implements OnInit {
   filter(): void {
     const q = this.searchQuery.toLowerCase();
     this.filtered.set(this.roles().filter((r) => `${r.nombre} ${r.descripcion}`.toLowerCase().includes(q)));
+    this.currentPage = 1;
   }
 
-  openModal(): void { this.editing.set(null); this.roleForm.reset(); this.showModal.set(true); }
-
-  editRole(role: Role): void {
-    this.editing.set(role);
-    this.roleForm.patchValue(role);
+  openModal(): void {
+    this.editing.set(null);
+    this.roleForm.reset();
+    this.selectedPermissionIds.set([]);
+    // Reset filters so all permissions are visible by default
+    this.permissionFilter = '';
+    this.moduleFilter = 'all';
+    // Expand groups so user sees permissions immediately when creating a new role
+    this.permissionGroups = this.permissionGroups.map(g => ({ ...g, expanded: true }));
     this.showModal.set(true);
   }
 
-  openPermModal(role: Role): void {
-    this.selectedRole.set(role);
-    this.selectedPermId = '';
-    this.permissionsService.getPermissionsByRole(role.id_rol).subscribe((p) => this.rolePermissions.set(p));
-    this.showPermModal.set(true);
+  editRole(role: Role): void {
+    this.editing.set(role);
+    this.roleForm.patchValue({ nombre: role.nombre, descripcion: role.descripcion || '' });
+    this.selectedPermissionIds.set([]);
+    // Reset filters so all permissions are visible by default
+    this.permissionFilter = '';
+    this.moduleFilter = 'all';
+
+    const loadAndAssign = () => {
+      this.permissionsService.getPermissionsByRole(role.id_rol).subscribe({
+        next: (permissions) => {
+          const ids = (permissions || []).map((perm) => perm.id_permiso!).filter(id => typeof id === 'number' && !isNaN(id));
+          this.selectedPermissionIds.set(ids);
+          // Expand all groups so user sees permissions immediately
+          this.permissionGroups = this.permissionGroups.map(g => ({ ...g, expanded: true }));
+          this.showModal.set(true);
+        },
+        error: () => {
+          this.selectedPermissionIds.set([]);
+          this.permissionGroups = this.permissionGroups.map(g => ({ ...g, expanded: true }));
+          this.showModal.set(true);
+        },
+      });
+    };
+
+    // If permissions list not loaded yet, fetch it first then assign
+    if (!this.allPermissions() || this.allPermissions().length === 0) {
+      this.permissionsService.getAll().subscribe({ next: (p) => { this.allPermissions.set(p); loadAndAssign(); }, error: () => loadAndAssign() });
+    } else {
+      loadAndAssign();
+    }
   }
 
-  closeModals(): void { this.showModal.set(false); this.showPermModal.set(false); }
+  closeModals(): void { this.showModal.set(false); }
 
+  /**
+   * Guarda un rol nuevo o actualizado junto con su matriz de permisos
+   */
   save(): void {
     if (this.roleForm.invalid) { this.roleForm.markAllAsTouched(); return; }
-    const data = this.roleForm.value as Partial<Role>;
+    this.saving.set(true);
+
+    // Build a clean payload with only valid fields for the backend
+    const formVal = this.roleForm.value;
+    const data: Partial<Role> = {
+      nombre: formVal.nombre || ''
+    };
+
     const editing = this.editing();
-    const req = editing ? this.rolesService.update(editing.id_rol, data) : this.rolesService.create(data);
-    req.subscribe({
-      next: () => { this.toast.success('Rol guardado'); this.closeModals(); this.loadRoles(); },
-      error: () => this.toast.error('Error al guardar el rol'),
+    const roleRequest = editing
+      ? this.rolesService.update(editing.id_rol, data)
+      : this.rolesService.create(data);
+
+    roleRequest.subscribe({
+      next: (savedRole) => {
+        const roleId = savedRole.id_rol ?? (editing ? editing.id_rol : 0);
+        // Compile clean array of numeric permission IDs
+        const permissionIds: number[] = (this.selectedPermissionIds() || [])
+          .filter((id): id is number => typeof id === 'number' && !isNaN(id) && id > 0);
+
+        this.rolesService.updateRolePermissions(roleId, permissionIds).subscribe({
+          next: () => {
+            this.toast.success('Rol guardado con permisos actualizados exitosamente');
+            this.closeModals();
+            this.loadRoles();
+            this.saving.set(false);
+          },
+          error: (error) => {
+            console.error('Error actualizando permisos:', error);
+            this.toast.error('Rol guardado, pero no se pudieron actualizar los permisos');
+            this.closeModals();
+            this.loadRoles();
+            this.saving.set(false);
+          },
+        });
+      },
+      error: (error) => {
+        console.error('Error guardando rol:', error);
+        this.toast.error('Error al guardar el rol. Por favor, intenta de nuevo');
+        this.saving.set(false);
+      },
     });
   }
 
-  deleteRole(id: number): void {
-    if (!confirm('¿Eliminar este rol?')) return;
+  async deleteRole(id: number) {
+    const role = this.roles().find(r => r.id_rol === id);
+    const roleName = role ? role.nombre : '';
+
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: `¿Estás seguro de que deseas eliminar el rol '${roleName}'? Esta acción no se puede deshacer.`
+    });
+
+    if (!confirmed) return;
+
     this.rolesService.delete(id).subscribe({
       next: () => { this.toast.success('Rol eliminado'); this.loadRoles(); },
       error: () => this.toast.error('Error al eliminar'),
     });
   }
 
-  assignPermission(): void {
-    const role = this.selectedRole();
-    if (!role || !this.selectedPermId) return;
-    this.permissionsService.assignPermission({ id_rol: role.id_rol, id_permiso: +this.selectedPermId }).subscribe({
-      next: () => { this.toast.success('Permiso asignado'); this.openPermModal(role); },
-      error: () => this.toast.error('Error al asignar permiso'),
+  togglePermission(permissionId: number, checked: boolean): void {
+    this.selectedPermissionIds.update((ids) => {
+      if (checked) return ids.includes(permissionId) ? ids : [...ids, permissionId];
+      return ids.filter((id) => id !== permissionId);
     });
   }
 
-  removePermission(permId: number): void {
-    const role = this.selectedRole();
-    if (!role) return;
-    this.permissionsService.removePermission({ id_rol: role.id_rol, id_permiso: permId }).subscribe({
-      next: () => { this.toast.success('Permiso removido'); this.rolePermissions.update((p) => p.filter((x) => x.id !== permId)); },
-      error: () => this.toast.error('Error al remover permiso'),
-    });
-  }
 }

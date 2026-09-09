@@ -20,7 +20,6 @@ export class AuthService {
       tap((response) => {
         // El backend envuelve las respuestas en { data: ... } via ResponseInterceptor
         const body = response.data ?? response;
-        localStorage.setItem(this.TOKEN_KEY, body.access_token);
         const user = body.usuario || body.user;
         localStorage.setItem(this.USER_KEY, JSON.stringify(user));
         this.currentUser.set(user as AuthProfile);
@@ -36,7 +35,6 @@ export class AuthService {
     return this.http.post<any>(`${this.apiUrl}/auth/guest`, {}).pipe(
       tap((response) => {
         const body = response.data ?? response;
-        localStorage.setItem(this.TOKEN_KEY, body.access_token);
         const user = body.usuario || body.user;
         localStorage.setItem(this.USER_KEY, JSON.stringify(user));
         this.currentUser.set(user as AuthProfile);
@@ -61,18 +59,26 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem(this.TOKEN_KEY);
-    localStorage.removeItem(this.USER_KEY);
-    this.currentUser.set(null);
-    this.router.navigate(['/auth/login']);
+    this.http.post(`${this.apiUrl}/auth/logout`, {}).subscribe({
+      next: () => {
+        localStorage.removeItem(this.USER_KEY);
+        this.currentUser.set(null);
+        this.router.navigate(['/auth/login']);
+      },
+      error: () => {
+        localStorage.removeItem(this.USER_KEY);
+        this.currentUser.set(null);
+        this.router.navigate(['/auth/login']);
+      }
+    });
   }
 
   getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
+    return null; // El token ahora se maneja en cookies HttpOnly
   }
 
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    return !!this.getUserFromStorage(); // Ahora verificamos si hay un usuario logueado
   }
 
   private getUserFromStorage(): AuthProfile | null {

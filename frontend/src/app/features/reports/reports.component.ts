@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { ReportsService } from '../../core/services/api.services';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -9,7 +9,7 @@ import { Report } from '../../core/models';
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   template: `
     <div class="reports-page">
       <!-- Header Secundario -->
@@ -88,6 +88,17 @@ import { Report } from '../../core/models';
               <p><strong>Generado por:</strong> <span>{{ userName() }}</span></p>
             </div>
             
+            <div class="filtros_fechas" style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+              <div style="flex: 1;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">Fecha Inicio</label>
+                <input type="date" [(ngModel)]="fechaInicio" style="width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 4px;" />
+              </div>
+              <div style="flex: 1;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #333;">Fecha Fin</label>
+                <input type="date" [(ngModel)]="fechaFin" style="width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 4px;" />
+              </div>
+            </div>
+            
             <div class="preview_tabla">
               <h4>Vista Previa - {{ getModalTitle() }}</h4>
               <div class="tabla_preview">
@@ -102,8 +113,14 @@ import { Report } from '../../core/models';
             </div>
 
             <div class="modal_botones_reporte">
-              <button class="btn_descargar_completo" (click)="generateReport()" [disabled]="saving()">
-                <i class="fas fa-download"></i> Guardar y Generar PDF
+              <button class="btn_preview" (click)="previewReport()" [disabled]="saving()">
+                <i class="fas fa-eye"></i> Vista Previa
+              </button>
+              <button class="btn_descargar_completo" (click)="generateReport()" [disabled]="saving()" style="background: #1976d2;">
+                <i class="fas fa-file-excel"></i> {{ saving() ? 'Generando...' : 'Descargar Excel' }}
+              </button>
+              <button class="btn_descargar_completo" (click)="generatePdf()" [disabled]="saving()" style="background: #d32f2f;">
+                <i class="fas fa-file-pdf"></i> {{ saving() ? 'Generando...' : 'Descargar PDF' }}
               </button>
             </div>
 
@@ -154,6 +171,9 @@ import { Report } from '../../core/models';
     .btn_descargar_completo { flex: 1; min-width: 200px; padding: 1.5rem; background: var(--primary-green); color: white; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; transition: all 0.3s ease; }
     .btn_descargar_completo:hover { background: #2d8600; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .btn_descargar_completo:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn_preview { flex: 0 0 auto; min-width: 160px; padding: 1.5rem; background: white; color: #1976d2; border: 2px solid #1976d2; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 1rem; transition: all 0.3s ease; }
+    .btn_preview:hover { background: rgba(25,118,210,0.08); transform: translateY(-2px); }
+    .btn_preview:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
     
     .modal_botones { display: flex; justify-content: flex-end; padding-top: 2rem; border-top: 1px solid #e0e0e0; }
     .btn_cerrar { padding: 1.2rem 3rem; background: #e0e0e0; color: #333; border: none; border-radius: 8px; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
@@ -172,6 +192,8 @@ export class ReportsComponent implements OnInit {
   saving = signal(false);
   selectedType = signal<string>('');
   currentDate = new Date();
+  fechaInicio = '';
+  fechaFin = '';
 
   ngOnInit(): void { this.loadReports(); }
 
@@ -189,6 +211,8 @@ export class ReportsComponent implements OnInit {
 
   abrirModalReporte(type: string): void {
     this.selectedType.set(type);
+    this.fechaInicio = '';
+    this.fechaFin = '';
     this.showModal.set(true);
   }
 
@@ -212,10 +236,8 @@ export class ReportsComponent implements OnInit {
     return 'General';
   }
 
-  generateReport(): void {
+  previewReport(): void {
     this.saving.set(true);
-
-    // Build data matching CreateReportDto
     const profile = this.authService.currentUser();
     const data = {
       tipo_reporte: this.selectedType(),
@@ -223,17 +245,132 @@ export class ReportsComponent implements OnInit {
     };
 
     this.reportsService.create(data).subscribe({
-      next: () => {
-        this.toast.success('Reporte guardado exitosamente');
-        this.showModal.set(false);
-        this.loadReports();
+      next: (report: any) => {
+        const reportId = report?.data?.id_reporte || report?.id_reporte;
+        if (!reportId) {
+          this.toast.error('No se pudo obtener el ID del reporte para vista previa');
+          this.saving.set(false);
+          return;
+        }
+        this.reportsService.downloadReport(reportId).subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            // Revoke after a short delay so the new tab can load
+            setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+            this.toast.success('Vista previa abierta en una nueva pestaña');
+          },
+          error: () => this.toast.error('Error al generar la vista previa'),
+          complete: () => this.saving.set(false),
+        });
       },
       error: (err) => {
         const msg = err?.error?.message;
-        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el reporte en la base de datos');
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al crear el reporte');
         this.saving.set(false);
       },
-      complete: () => this.saving.set(false),
+    });
+  }
+
+  generateReport(): void {
+    this.saving.set(true);
+
+    const profile = this.authService.currentUser();
+    const data = {
+      tipo_reporte: this.selectedType(),
+      id_usuario: profile?.id_usuario ?? '',
+    };
+
+    // Step 1: Create the report record
+    this.reportsService.create(data).subscribe({
+      next: (report: any) => {
+        const reportId = report?.data?.id_reporte || report?.id_reporte;
+        if (!reportId) {
+          this.toast.success('Reporte guardado exitosamente');
+          this.showModal.set(false);
+          this.loadReports();
+          this.saving.set(false);
+          return;
+        }
+        // Step 2: Download the CSV blob
+        this.reportsService.downloadReport(reportId, this.fechaInicio, this.fechaFin).subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte-${this.selectedType()}-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            this.toast.success('Reporte descargado exitosamente');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          error: () => {
+            this.toast.success('Reporte guardado (descarga no disponible)');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          complete: () => this.saving.set(false),
+        });
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el reporte');
+        this.saving.set(false);
+      },
+    });
+  }
+
+  generatePdf(): void {
+    this.saving.set(true);
+
+    const profile = this.authService.currentUser();
+    const data = {
+      tipo_reporte: this.selectedType(),
+      id_usuario: profile?.id_usuario ?? '',
+    };
+
+    this.reportsService.create(data).subscribe({
+      next: (report: any) => {
+        const reportId = report?.data?.id_reporte || report?.id_reporte;
+        if (!reportId) {
+          this.toast.success('Reporte guardado exitosamente');
+          this.showModal.set(false);
+          this.loadReports();
+          this.saving.set(false);
+          return;
+        }
+        
+        this.reportsService.downloadPdfReport(reportId, this.fechaInicio, this.fechaFin).subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reporte-${this.selectedType()}-${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            this.toast.success('PDF descargado exitosamente');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          error: () => {
+            this.toast.success('Reporte guardado (descarga no disponible)');
+            this.showModal.set(false);
+            this.loadReports();
+          },
+          complete: () => this.saving.set(false),
+        });
+      },
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.toast.error(msg ? `Error: ${Array.isArray(msg) ? msg.join(', ') : msg}` : 'Error al guardar el reporte');
+        this.saving.set(false);
+      },
     });
   }
 }

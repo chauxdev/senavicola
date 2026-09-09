@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,11 +8,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/role-permission.entity';
+import { Role } from '../roles/entities/role.entity';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import {
   UpdatePermissionDto,
   AssignPermissionDto,
 } from './dto/update-permission.dto';
+import { PERMISSION_NAMES } from './permissions.constants';
 
 @Injectable()
 export class PermissionsService {
@@ -20,9 +23,17 @@ export class PermissionsService {
     private readonly permisoRepo: Repository<Permission>,
     @InjectRepository(RolePermission)
     private readonly rolPermisoRepo: Repository<RolePermission>,
+    @InjectRepository(Role)
+    private readonly rolRepo: Repository<Role>,
   ) {}
 
   async create(dto: CreatePermissionDto): Promise<Permission> {
+    if (!PERMISSION_NAMES.map((p) => String(p)).includes(String(dto.nombre))) {
+      throw new BadRequestException(
+        `Permiso no permitido: ${dto.nombre}. Use un permiso del catálogo fijo.`,
+      );
+    }
+
     const existe = await this.permisoRepo.findOne({
       where: { codigo: dto.codigo },
     });
@@ -47,6 +58,25 @@ export class PermissionsService {
 
   async update(id: number, dto: UpdatePermissionDto): Promise<Permission> {
     const permiso = await this.findOne(id);
+
+    if (dto.codigo !== undefined && dto.codigo !== permiso.codigo) {
+      const existing = await this.permisoRepo.findOne({
+        where: { codigo: dto.codigo },
+      });
+      if (existing && existing.id_permiso !== id) {
+        throw new ConflictException(`Permiso con código ${dto.codigo} ya existe`);
+      }
+    }
+
+    if (dto.nombre && dto.nombre !== permiso.nombre) {
+      const existing = await this.permisoRepo.findOne({
+        where: { nombre: dto.nombre },
+      });
+      if (existing && existing.id_permiso !== id) {
+        throw new ConflictException(`Permiso "${dto.nombre}" ya existe`);
+      }
+    }
+
     return this.permisoRepo.save(Object.assign(permiso, dto));
   }
 
@@ -81,5 +111,13 @@ export class PermissionsService {
       where: { id_rol },
       relations: ['permiso'],
     });
+  }
+
+  async getPermissionMatrix(): Promise<{ roles: Role[]; permissions: Permission[] }> {
+    const roles = await this.rolRepo.find({
+      relations: ['rolPermisos', 'rolPermisos.permiso'],
+    });
+    const permissions = await this.permisoRepo.find();
+    return { roles, permissions };
   }
 }

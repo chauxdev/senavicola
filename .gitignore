@@ -1,0 +1,84 @@
+# ==========================================
+# SENAVICOLA - GITIGNORE GLOBAL
+# ==========================================
+
+# --------------------------
+# Dependencias Node
+# --------------------------
+node_modules/
+
+# --------------------------
+# Python
+# --------------------------
+venv/
+env/
+.venv/
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --------------------------
+# Variables de entorno
+# --------------------------
+.env
+.env.*
+!.env.example
+
+# --------------------------
+# Logs
+# --------------------------
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# --------------------------
+# Archivos temporales / Debug IA
+# --------------------------
+debug_*.jpg
+debug_*.jpeg
+debug_*.png
+test_*.jpg
+test_*.jpeg
+test_*.png
+
+# --------------------------
+# Builds / compilados
+# --------------------------
+dist/
+build/
+tmp/
+out-tsc/
+
+# --------------------------
+# IDEs / Editores
+# --------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+
+# --------------------------
+# Sistema operativo
+# --------------------------
+.DS_Store
+Thumbs.db
+
+# --------------------------
+# Coverage / pruebas
+# --------------------------
+coverage/
+.nyc_output/
+
+# --------------------------
+# Archivos temporales
+# --------------------------
+.temp/
+.tmp/
+*.pid
+*.seed
+*.pid.lock

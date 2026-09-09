@@ -15,6 +15,7 @@ import { MeasurementUnitsService } from '../../../core/services/api.services';
       icon="fa-ruler"
       idField="id_unidad_medida"
       [fields]="fields"
+      [disabledOnEditFields]="['nombre']"
     />
   `,
 })

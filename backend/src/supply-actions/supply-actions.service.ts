@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { SupplyAction } from './entities/supply-action.entity';
 import { CreateSupplyActionDto } from './dto/create-supply-action.dto';
 import { UpdateSupplyActionDto } from './dto/update-supply-action.dto';
@@ -18,7 +18,7 @@ export class SupplyActionsService {
 
   async create(dto: CreateSupplyActionDto): Promise<SupplyAction> {
     const existing = await this.supplyActionRepository.findOne({
-      where: { nombre: dto.nombre },
+      where: { nombre: ILike(dto.nombre) },
     });
     if (existing) {
       throw new ConflictException(`La acción "${dto.nombre}" ya existe`);
@@ -48,7 +48,7 @@ export class SupplyActionsService {
 
     if (dto.nombre) {
       const existing = await this.supplyActionRepository.findOne({
-        where: { nombre: dto.nombre },
+        where: { nombre: ILike(dto.nombre) },
       });
 
       if (existing && existing.id_accion_historial_movimiento !== id) {

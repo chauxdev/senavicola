@@ -1,4 +1,4 @@
-import { IsUUID, IsNumber } from 'class-validator';
+import { IsUUID, IsNumber, IsOptional, IsDateString, IsString } from 'class-validator';
 
 export class RegisterDeadBirdsDto {
   @IsUUID()
@@ -6,4 +6,12 @@ export class RegisterDeadBirdsDto {
 
   @IsNumber()
   cantidad!: number;
+
+  @IsOptional()
+  @IsDateString()
+  fecha?: string;
+
+  @IsOptional()
+  @IsString()
+  motivo?: string;
 }

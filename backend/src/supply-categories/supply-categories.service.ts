@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { SupplyCategory } from './entities/supply-category.entity';
 import { CreateSupplyCategoryDto } from './dto/create-supply-category.dto';
 import { UpdateSupplyCategoryDto } from './dto/update-supply-category.dto';
@@ -18,7 +18,7 @@ export class SupplyCategoriesService {
 
   async create(dto: CreateSupplyCategoryDto): Promise<SupplyCategory> {
     const existing = await this.supplyCategoryRepository.findOne({
-      where: { nombre_categoria: dto.nombre_categoria },
+      where: { nombre_categoria: ILike(dto.nombre_categoria) },
     });
     if (existing) {
       throw new ConflictException(
@@ -49,6 +49,21 @@ export class SupplyCategoriesService {
     dto: UpdateSupplyCategoryDto,
   ): Promise<SupplyCategory> {
     const category = await this.findOne(id);
+
+    if (
+      dto.nombre_categoria &&
+      dto.nombre_categoria.toLowerCase() !== category.nombre_categoria.toLowerCase()
+    ) {
+      const existing = await this.supplyCategoryRepository.findOne({
+        where: { nombre_categoria: ILike(dto.nombre_categoria) },
+      });
+      if (existing) {
+        throw new ConflictException(
+          `La categoría "${dto.nombre_categoria}" ya existe`,
+        );
+      }
+    }
+
     Object.assign(category, dto);
     return this.supplyCategoryRepository.save(category);
   }

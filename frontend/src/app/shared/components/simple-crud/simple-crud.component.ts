@@ -6,6 +6,8 @@ import { RouterLink } from '@angular/router';
 import { BaseApiService } from '../../../core/services/base-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { PaginationComponent } from '../pagination/pagination.component';
 
 export interface CrudField {
   key: string;
@@ -18,7 +20,7 @@ export interface CrudField {
 @Component({
   selector: 'app-simple-crud',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterLink, PaginationComponent],
   template: `
     <div class="crud-page">
       <div class="module-header">
@@ -54,22 +56,22 @@ export interface CrudField {
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th style="width: 60px;">#</th>
                   @for (field of fields; track field.key) { <th>{{ field.label }}</th> }
                   @if (permissions.canWrite()) {
-                    <th>Acciones</th>
+                    <th style="text-align: right; width: 120px;">Acciones</th>
                   }
                 </tr>
               </thead>
               <tbody>
-                @for (item of filtered(); track $index) {
+                @for (item of pagedItems; track $index) {
                   <tr>
-                    <td><span class="badge active">{{ getItemIdShort(item) }}</span></td>
+                    <td><strong>{{ (currentPage - 1) * limit + $index + 1 }}</strong></td>
                     @for (field of fields; track field.key) {
                       <td>{{ asRecord(item)[field.key] || '—' }}</td>
                     }
                     @if (permissions.canWrite()) {
-                      <td class="actions-cell">
+                      <td class="actions-cell" style="text-align: right; justify-content: flex-end;">
                         <button class="btn-icon edit" (click)="editItem(item)"><i class="fas fa-edit"></i></button>
                         <button class="btn-icon delete" (click)="deleteItem(getItemId(item))"><i class="fas fa-trash"></i></button>
                       </td>
@@ -79,6 +81,12 @@ export interface CrudField {
               </tbody>
             </table>
           </div>
+          <app-pagination 
+            [currentPage]="currentPage" 
+            [totalPages]="totalPages" 
+            [totalItems]="filtered().length"
+            (pageChange)="onPageChange($event)">
+          </app-pagination>
         }
       </div>
     </div>
@@ -94,11 +102,16 @@ export interface CrudField {
             <form [formGroup]="form">
               @for (field of fields; track field.key) {
                 <div class="form-group">
-                  <label><i class="fas {{ icon }}"></i> {{ field.label }}</label>
+                  <label>
+                    <i class="fas {{ icon }}"></i> {{ field.label }}
+                    @if (field.required) {
+                      <span style="color: red">*</span>
+                    }
+                  </label>
                   @if (field.type === 'textarea') {
-                    <textarea [formControlName]="field.key" [placeholder]="field.placeholder || ''" rows="3"></textarea>
+                    <textarea [formControlName]="field.key" [placeholder]="field.placeholder || ''" rows="3" [readonly]="permissions.isVisitor() || (editing() !== null && disabledOnEditFields.includes(field.key))" [class.input-disabled]="permissions.isVisitor() || (editing() !== null && disabledOnEditFields.includes(field.key))"></textarea>
                   } @else {
-                    <input [type]="field.type" [formControlName]="field.key" [placeholder]="field.placeholder || ''" />
+                    <input [type]="field.type" [formControlName]="field.key" [placeholder]="field.placeholder || ''" [readonly]="permissions.isVisitor() || (editing() !== null && disabledOnEditFields.includes(field.key))" [class.input-disabled]="permissions.isVisitor() || (editing() !== null && disabledOnEditFields.includes(field.key))" />
                   }
                 </div>
               }
@@ -106,9 +119,11 @@ export interface CrudField {
           </div>
           <div class="modal-footer">
             <button class="btn-outline" (click)="closeModal()">Cancelar</button>
-            <button class="btn-green" (click)="save()" [disabled]="saving()">
-              <i class="fas fa-save"></i> {{ editing() ? 'Actualizar' : 'Crear' }}
-            </button>
+            @if (permissions.canWrite()) {
+              <button class="btn-green" (click)="save()" [disabled]="saving()">
+                <i class="fas fa-save"></i> {{ editing() ? 'Actualizar' : 'Crear' }}
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -134,9 +149,11 @@ export class SimpleCrudComponent<T> implements OnInit {
   @Input({ required: true }) fields!: CrudField[];
   /** Name of the primary key field in the backend entity (e.g. 'id_tipo', 'id_galpon') */
   @Input() idField = 'id';
+  @Input() disabledOnEditFields: string[] = [];
 
   private fb = inject(FormBuilder);
   private toast = inject(ToastService);
+  private confirmService = inject(ConfirmService);
   public permissions = inject(PermissionsService);
 
   loading = signal(true);
@@ -147,6 +164,22 @@ export class SimpleCrudComponent<T> implements OnInit {
   editing = signal<T | null>(null);
   saving = signal(false);
   form!: FormGroup;
+
+  currentPage = 1;
+  limit = 5;
+
+  get pagedItems(): T[] {
+    const start = (this.currentPage - 1) * this.limit;
+    return this.filtered().slice(start, start + this.limit);
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.filtered().length / this.limit);
+  }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+  }
 
   asRecord(item: T): Record<string, unknown> { return item as Record<string, unknown>; }
 
@@ -182,7 +215,12 @@ export class SimpleCrudComponent<T> implements OnInit {
 
   private load(): void {
     this.service.getAll().subscribe({
-      next: (data) => { this.items.set(data); this.filtered.set(data); this.loading.set(false); },
+      next: (data) => { 
+        this.items.set(data); 
+        this.filtered.set(data); 
+        this.loading.set(false); 
+        this.currentPage = 1;
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -192,6 +230,7 @@ export class SimpleCrudComponent<T> implements OnInit {
     this.filtered.set(this.items().filter((item) =>
       this.fields.some((f) => String((item as Record<string, unknown>)[f.key] ?? '').toLowerCase().includes(q))
     ));
+    this.currentPage = 1;
   }
 
   openModal(): void { this.editing.set(null); this.form.reset(); this.showModal.set(true); }
@@ -234,11 +273,29 @@ export class SimpleCrudComponent<T> implements OnInit {
     });
   }
 
-  deleteItem(id: string | number): void {
-    if (!confirm(`¿Eliminar este ${this.entityName}?`)) return;
+  async deleteItem(id: string | number) {
+    let itemDetail = '';
+    const itemObj = this.items().find(it => this.getItemId(it) === id);
+    if (itemObj) {
+      const rec = itemObj as Record<string, any>;
+      itemDetail = rec['nombre'] || rec['nombre_categoria'] || rec['nombre_rol'] || rec['nombre_permiso'] || rec['tipo'] || rec['abreviatura'] || '';
+    }
+
+    const msg = itemDetail 
+      ? `¿Estás seguro de que deseas eliminar ${this.entityName.toLowerCase()} '${itemDetail}'? Esta acción no se puede deshacer.`
+      : `¿Estás seguro de que deseas eliminar este ${this.entityName.toLowerCase()}? Esta acción no se puede deshacer.`;
+
+    const confirmed = await this.confirmService.confirm({
+      title: 'Confirmar eliminación',
+      message: msg
+    });
+
+    if (!confirmed) return;
+
     this.service.delete(id).subscribe({
       next: () => { this.toast.success(`${this.entityName} eliminado`); this.load(); },
       error: () => this.toast.error('Error al eliminar'),
     });
   }
 }
+

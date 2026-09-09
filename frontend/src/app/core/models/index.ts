@@ -46,15 +46,24 @@ export interface Role {
   id_rol: number;
   nombre: string;
   descripcion?: string;
+  rolPermisos?: RolePermission[];
 }
 
 // ===== PERMISSION MODEL =====
 export interface Permission {
-  id: number;
+  id?: number;
+  id_permiso: number;
   nombre: string;
   descripcion?: string;
   recurso?: string;
   accion?: string;
+}
+
+export interface RolePermission {
+  id_rol_permiso: number;
+  id_rol: number;
+  id_permiso: number;
+  permiso?: Permission;
 }
 
 // ===== BREED MODEL =====
@@ -70,11 +79,11 @@ export interface Barn {
   codigo: string;
   nombre: string;
   capacidad_max_aves: number;
-  longitud: number;
-  area?: number;
+  area: number;
   unidadMedida?: MeasurementUnit;
   createdAt?: string;
   updatedAt?: string;
+  total_aves_actuales?: number;
 }
 
 // ===== FLOCK MODEL =====
@@ -93,6 +102,20 @@ export interface FlockLocation {
   id_ubicacion_lote: string;
   galpon?: Barn;
   lote?: Flock;
+  Fecha?: string;
+}
+
+// ===== FLOCK ASSIGNMENT HISTORY =====
+export interface FlockAssignmentHistory {
+  id_historial_asignacion_lote: string;
+  cantidad_asignada: number;
+  fecha: string;
+  descripcion: string;
+  usuario: string;
+  nombre_elemento: string;
+  raza_nombre: string | null;
+  lote?: Flock;
+  galpon?: Barn;
 }
 
 // ===== EGG TYPE MODEL =====
@@ -109,7 +132,7 @@ export interface EggInventory {
   cantidad: number;
   tipo_huevo?: EggType;
   lote?: Flock;
-  produccion?: unknown;
+  produccion?: any;
 }
 
 // ===== SUPPLY CATEGORY MODEL =====
@@ -130,12 +153,16 @@ export interface Supply {
   id_insumo: string;
   nombre: string;
   cantidad: number;
+  stockMinimo?: number;
+  proveedor?: string;
+  precioUnitario?: number;
   fecha: string;
-  id_categoria: number;
-  id_unidad_medida: number;
+  id_categoria: string;
+  id_unidad_medida: string;
   id_llamar_usuario: number;
   categoria?: SupplyCategory;
   unidadMedida?: MeasurementUnit;
+  llamarUsuario?: any;
 }
 
 // ===== SUPPLY HISTORY MODEL =====
@@ -148,6 +175,7 @@ export interface SupplyHistory {
   fecha: string;
   insumo?: Supply;
   accion?: SupplyAction;
+  usuario?: string;
 }
 
 // ===== SUPPLY ACTION MODEL =====

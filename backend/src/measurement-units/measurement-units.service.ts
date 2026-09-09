@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { MeasurementUnit } from './entities/measurement-unit.entity';
 import { CreateMeasurementUnitDto } from './dto/create-measurement-unit.dto';
 import { UpdateMeasurementUnitDto } from './dto/update-measurement-unit.dto';
@@ -18,7 +18,7 @@ export class MeasurementUnitsService {
 
   async create(dto: CreateMeasurementUnitDto): Promise<MeasurementUnit> {
     const existingNombre = await this.measurementUnitRepository.findOne({
-      where: { nombre: dto.nombre },
+      where: { nombre: ILike(dto.nombre) },
     });
     if (existingNombre) {
       throw new ConflictException(
@@ -28,7 +28,7 @@ export class MeasurementUnitsService {
     
     if (dto.abreviatura) {
       const existingAbrev = await this.measurementUnitRepository.findOne({
-        where: { abreviatura: dto.abreviatura },
+        where: { abreviatura: ILike(dto.abreviatura) },
       });
       if (existingAbrev) {
         throw new ConflictException(
@@ -65,9 +65,9 @@ export class MeasurementUnitsService {
   ): Promise<MeasurementUnit> {
     const unit = await this.findOne(id);
     
-    if (dto.nombre && dto.nombre !== unit.nombre) {
+    if (dto.nombre && dto.nombre.toLowerCase() !== unit.nombre.toLowerCase()) {
       const existingNombre = await this.measurementUnitRepository.findOne({
-        where: { nombre: dto.nombre },
+        where: { nombre: ILike(dto.nombre) },
       });
       if (existingNombre) {
         throw new ConflictException(
@@ -76,9 +76,9 @@ export class MeasurementUnitsService {
       }
     }
     
-    if (dto.abreviatura && dto.abreviatura !== unit.abreviatura) {
+    if (dto.abreviatura && dto.abreviatura.toLowerCase() !== unit.abreviatura?.toLowerCase()) {
       const existingAbrev = await this.measurementUnitRepository.findOne({
-        where: { abreviatura: dto.abreviatura },
+        where: { abreviatura: ILike(dto.abreviatura) },
       });
       if (existingAbrev) {
         throw new ConflictException(
